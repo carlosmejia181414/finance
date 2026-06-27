@@ -1,0 +1,17 @@
+{
+  "name": "balance-json-db-app",
+  "version": "1.0.0",
+  "description": "App para controlar ingresos, gastos fijos recurrentes, gastos variables y ahorro usando db.json",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "balance",
+    "finanzas",
+    "json",
+    "database"
+  ],
+  "author": "",
+  "license": "MIT"
+}

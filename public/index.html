@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Balance con JSON DB</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Control de Balance</h1>
+    <p>Ingresos, gastos fijos recurrentes, gastos variables y ahorro. Datos guardados en <strong>db.json</strong>.</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Registrar movimiento</h2>
+
+      <form id="transactionForm">
+        <div class="grid">
+          <label>
+            Fecha
+            <input type="date" id="date" required />
+          </label>
+
+          <label>
+            Tipo
+            <select id="type" required>
+              <option value="income">Ingreso</option>
+              <option value="fixed">Gasto fijo recurrente</option>
+              <option value="variable">Gasto variable</option>
+            </select>
+          </label>
+
+          <label>
+            Categoría
+            <input type="text" id="category" placeholder="Ej: salario, renta, comida" required />
+          </label>
+
+          <label>
+            Monto
+            <input type="number" id="amount" min="0" step="0.01" placeholder="0.00" required />
+          </label>
+        </div>
+
+        <label>
+          Descripción
+          <input type="text" id="description" placeholder="Ej: pago quincenal, supermercado, internet" />
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" id="submitBtn">Agregar</button>
+          <button type="button" id="cancelEditBtn" class="secondary hidden">Cancelar edición</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Filtros</h2>
+      <div class="grid two-columns">
+        <label>
+          Mes
+          <select id="monthFilter"></select>
+        </label>
+
+        <label>
+          Año
+          <select id="yearFilter"></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="summary">
+      <div class="summary-card income">
+        <h3>Ingresos</h3>
+        <p id="totalIncome">$0.00</p>
+      </div>
+
+      <div class="summary-card fixed">
+        <h3>Gastos fijos</h3>
+        <p id="totalFixed">$0.00</p>
+      </div>
+
+      <div class="summary-card variable">
+        <h3>Gastos variables</h3>
+        <p id="totalVariable">$0.00</p>
+      </div>
+
+      <div class="summary-card savings">
+        <h3>Ahorro</h3>
+        <p id="savingsBalance">$0.00</p>
+      </div>
+    </section>
+
+    <section class="dashboard-row">
+      <div class="card chart-card">
+        <h2>Gráfico del mes</h2>
+        <canvas id="monthlyChart"></canvas>
+      </div>
+
+      <div class="card detail-card">
+        <h2>Detalle del mes</h2>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Monto</th>
+                <th>Categoría</th>
+                <th>Descripción</th>
+                <th>Tipo</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyDetailTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Ahorro por meses del año</h2>
+      <canvas id="yearlyChart"></canvas>
+    </section>
+
+    <section class="card">
+      <div class="table-header">
+        <h2>Movimientos registrados</h2>
+        <button id="exportBtn" class="secondary">Exportar JSON</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Categoría</th>
+              <th>Descripción</th>
+              <th>Monto</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="transactionTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
