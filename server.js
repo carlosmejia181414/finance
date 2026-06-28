@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const PORT = 3000;
+const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = path.join(__dirname, "db.json");
 const PUBLIC_PATH = path.join(__dirname, "public");
 
@@ -284,7 +284,25 @@ const server = http.createServer(async (request, response) => {
 
 ensureDatabase();
 
-server.listen(PORT, () => {
-  console.log("Servidor iniciado en http://localhost:" + PORT);
-  console.log("Los datos se guardan en: " + DB_PATH);
-});
+function startServer(port, attempts = 0) {
+  const maxAttempts = 20;
+
+  server.once("error", error => {
+    if (error.code === "EADDRINUSE" && attempts < maxAttempts) {
+      const nextPort = port + 1;
+      console.log("El puerto " + port + " está ocupado. Probando con el puerto " + nextPort + "...");
+      startServer(nextPort, attempts + 1);
+      return;
+    }
+
+    console.error("No se pudo iniciar el servidor:", error.message);
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
+    console.log("Servidor iniciado en http://localhost:" + port);
+    console.log("Los datos se guardan en: " + DB_PATH);
+  });
+}
+
+startServer(DEFAULT_PORT);

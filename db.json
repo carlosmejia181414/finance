@@ -41,5 +41,14 @@
       "kind": "variable"
     }
   ],
-  "transactions": []
+  "transactions": [
+    {
+      "id": "33caf685-37d9-4003-bbf6-fe60ef72cdf8",
+      "date": "2026-06-28",
+      "type": "fixed",
+      "categoryId": "cat_rent",
+      "amount": 1826,
+      "description": "casa"
+    }
+  ]
 }

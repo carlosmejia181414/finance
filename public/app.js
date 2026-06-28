@@ -39,12 +39,29 @@ const averageTable = document.getElementById("averageTable");
 const projectionTable = document.getElementById("projectionTable");
 const alertsList = document.getElementById("alertsList");
 const suggestionsList = document.getElementById("suggestionsList");
+const paretoTable = document.getElementById("paretoTable");
+const categoryVarianceTable = document.getElementById("categoryVarianceTable");
+const recurringTable = document.getElementById("recurringTable");
+const variableAnalysisTable = document.getElementById("variableAnalysisTable");
+const categoryMatrixHead = document.getElementById("categoryMatrixHead");
+const categoryMatrixBody = document.getElementById("categoryMatrixBody");
+const financialScoreBox = document.getElementById("financialScoreBox");
+const scoreBreakdownTable = document.getElementById("scoreBreakdownTable");
+const dataQualityTable = document.getElementById("dataQualityTable");
+const optimizationTable = document.getElementById("optimizationTable");
 
 let monthlyChart = null;
 let chartsMonthlyChart = null;
 let yearlyChart = null;
 let categoryReportChart = null;
 let expenseTrendChart = null;
+let paretoChart = null;
+let categoryShareChart = null;
+let fixedVariableStackedChart = null;
+let cumulativeSavingsChart = null;
+let cumulativeExpensesChart = null;
+let incomeExpenseRatioChart = null;
+let ruleScoreChart = null;
 
 let transactionsCache = [];
 let categoriesCache = [];
@@ -630,17 +647,20 @@ function rowClassByStatus(status) {
 }
 
 function renderAnalytics() {
+  const selectedYear = Number(yearFilter.value);
+  const selectedMonth = Number(monthFilter.value);
+
   const transactions = getFilteredTransactions();
   const totals = calculateTotals(transactions);
   const previous = calculateTotals(getPreviousMonthInfo().transactions);
+  const grouped = groupByCategory(transactions, false);
+  const groupedPrevious = groupByCategory(getPreviousMonthInfo().transactions, false);
+  const top = grouped[0];
 
   const savingsRate = totals.income > 0 ? (totals.savings / totals.income) * 100 : 0;
   const expenseRate = totals.income > 0 ? (totals.expenses / totals.income) * 100 : 0;
   const fixedRate = totals.expenses > 0 ? (totals.fixed / totals.expenses) * 100 : 0;
   const variableRate = totals.expenses > 0 ? (totals.variable / totals.expenses) * 100 : 0;
-
-  const grouped = groupByCategory(transactions, false);
-  const top = grouped[0];
 
   const yearly = getYearlyTotals();
   const activeMonths = yearly.filter(item => item.income || item.expenses || item.savings);
@@ -653,40 +673,51 @@ function renderAnalytics() {
   const yearSavings = yearly.reduce((sum, item) => sum + item.savings, 0);
 
   const avgIncome = yearIncome / monthsCount;
+  const avgFixed = yearFixed / monthsCount;
+  const avgVariable = yearVariable / monthsCount;
   const avgExpenses = yearExpenses / monthsCount;
   const avgSavings = yearSavings / monthsCount;
+
+  const variableTransactions = transactions.filter(item => item.type === "variable");
+  const fixedTransactions = transactions.filter(item => item.type === "fixed");
+  const incomeTransactions = transactions.filter(item => item.type === "income");
+  const avgVariableTicket = variableTransactions.length ? totals.variable / variableTransactions.length : 0;
+  const maxVariable = variableTransactions.length ? Math.max(...variableTransactions.map(item => item.amount)) : 0;
+  const minVariable = variableTransactions.length ? Math.min(...variableTransactions.map(item => item.amount)) : 0;
+  const dailyBurn = totals.expenses / 30;
 
   analyticsCards.innerHTML = `
     <div class="analytics-card"><h4>Tasa de ahorro</h4><p>${pct(savingsRate)}</p><small>Ahorro / ingresos</small></div>
     <div class="analytics-card"><h4>Tasa de gasto</h4><p>${pct(expenseRate)}</p><small>Gastos / ingresos</small></div>
-    <div class="analytics-card"><h4>Fijos sobre gastos</h4><p>${pct(fixedRate)}</p><small>Pagos recurrentes</small></div>
+    <div class="analytics-card"><h4>Fijos sobre gastos</h4><p>${pct(fixedRate)}</p><small>Compromisos recurrentes</small></div>
     <div class="analytics-card"><h4>Variables sobre gastos</h4><p>${pct(variableRate)}</p><small>Gastos ajustables</small></div>
-    <div class="analytics-card"><h4>Gasto diario estimado</h4><p>${formatCurrency(totals.expenses / 30)}</p><small>Promedio simple mensual</small></div>
+    <div class="analytics-card"><h4>Gasto diario estimado</h4><p>${formatCurrency(dailyBurn)}</p><small>Gasto mensual / 30</small></div>
     <div class="analytics-card"><h4>Ahorro proyectado</h4><p>${formatCurrency(avgSavings * 12)}</p><small>Promedio anualizado</small></div>
-    <div class="analytics-card"><h4>Categoría más alta</h4><p>${top ? top.category : "-"}</p><small>${top ? formatCurrency(top.amount) : "Sin datos"}</small></div>
-    <div class="analytics-card"><h4>Meses con datos</h4><p>${activeMonths.length}</p><small>Año seleccionado</small></div>
+    <div class="analytics-card"><h4>Categoría dominante</h4><p>${top ? top.category : "-"}</p><small>${top ? formatCurrency(top.amount) : "Sin datos"}</small></div>
+    <div class="analytics-card"><h4>Movimientos del mes</h4><p>${transactions.length}</p><small>${incomeTransactions.length} ingresos, ${fixedTransactions.length} fijos, ${variableTransactions.length} variables</small></div>
   `;
 
+  // Top category table
   analyticsCategoryTable.innerHTML = "";
-
   if (grouped.length === 0) {
-    analyticsCategoryTable.innerHTML = '<tr><td colspan="4">No hay gastos para analizar.</td></tr>';
+    analyticsCategoryTable.innerHTML = '<tr><td colspan="5">No hay gastos para analizar.</td></tr>';
   } else {
     grouped.forEach(item => {
-      const percent = totals.income > 0 ? (item.amount / totals.income) * 100 : 0;
+      const percentIncome = totals.income > 0 ? (item.amount / totals.income) * 100 : 0;
+      const percentExpense = totals.expenses > 0 ? (item.amount / totals.expenses) * 100 : 0;
       const row = document.createElement("tr");
-
       row.innerHTML = `
         <td>${item.category}</td>
         <td>${getTypeLabel(item.type)}</td>
         <td>${formatCurrency(item.amount)}</td>
-        <td>${pct(percent)}</td>
+        <td>${pct(percentIncome)}</td>
+        <td>${pct(percentExpense)}</td>
       `;
-
       analyticsCategoryTable.appendChild(row);
     });
   }
 
+  // Rule 50/30/20
   ruleTable.innerHTML = "";
   [
     { name: "Necesidades / fijos", amount: totals.fixed, value: totals.income > 0 ? totals.fixed / totals.income * 100 : 0, goal: "≤ 50%", limit: 50, mode: "max" },
@@ -696,7 +727,6 @@ function renderAnalytics() {
     const status = item.mode === "max"
       ? (item.value <= item.limit ? "OK" : "Revisar")
       : (item.value >= item.limit ? "OK" : "Bajo");
-
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${item.name}</td>
@@ -705,10 +735,10 @@ function renderAnalytics() {
       <td>${item.goal}</td>
       <td class="${rowClassByStatus(status)}">${status}</td>
     `;
-
     ruleTable.appendChild(row);
   });
 
+  // Comparison
   comparisonTable.innerHTML = "";
   [
     ["Ingresos", totals.income, previous.income],
@@ -718,23 +748,24 @@ function renderAnalytics() {
     ["Ahorro", totals.savings, previous.savings]
   ].forEach(([name, current, old]) => {
     const diff = current - old;
+    const change = old !== 0 ? (diff / old) * 100 : 0;
     const row = document.createElement("tr");
-
     row.innerHTML = `
       <td>${name}</td>
       <td>${formatCurrency(current)}</td>
       <td>${formatCurrency(old)}</td>
       <td class="${diff > 0 ? "warning" : diff < 0 ? "good" : ""}">${formatCurrency(diff)}</td>
+      <td>${old === 0 ? "-" : pct(change)}</td>
     `;
-
     comparisonTable.appendChild(row);
   });
 
+  // Averages
   averageTable.innerHTML = "";
   [
     ["Ingresos", avgIncome, yearIncome],
-    ["Gastos fijos", yearFixed / monthsCount, yearFixed],
-    ["Gastos variables", yearVariable / monthsCount, yearVariable],
+    ["Gastos fijos", avgFixed, yearFixed],
+    ["Gastos variables", avgVariable, yearVariable],
     ["Gastos totales", avgExpenses, yearExpenses],
     ["Ahorro", avgSavings, yearSavings]
   ].forEach(([name, avg, total]) => {
@@ -743,49 +774,585 @@ function renderAnalytics() {
     averageTable.appendChild(row);
   });
 
+  // Projection
   projectionTable.innerHTML = "";
   [
     ["Ingresos", avgIncome * 12, "Estimado según tus meses con datos"],
     ["Gastos", avgExpenses * 12, "Proyección de salida anual"],
-    ["Ahorro", avgSavings * 12, avgSavings >= 0 ? "Vas en positivo si mantienes el ritmo" : "Riesgo de cerrar el año en negativo"]
+    ["Ahorro", avgSavings * 12, avgSavings >= 0 ? "Vas en positivo si mantienes el ritmo" : "Riesgo de cerrar el año en negativo"],
+    ["Gastos variables", avgVariable * 12, "Área con mayor capacidad de ajuste"]
   ].forEach(([name, value, comment]) => {
     const row = document.createElement("tr");
     row.innerHTML = `<td>${name}</td><td>${formatCurrency(value)}</td><td>${comment}</td>`;
     projectionTable.appendChild(row);
   });
 
+  // Pareto table
+  paretoTable.innerHTML = "";
+  let cumulative = 0;
+  if (grouped.length === 0) {
+    paretoTable.innerHTML = '<tr><td colspan="6">No hay gastos para calcular Pareto.</td></tr>';
+  } else {
+    grouped.forEach((item, index) => {
+      const share = totals.expenses > 0 ? item.amount / totals.expenses * 100 : 0;
+      cumulative += share;
+      const priority = index < 3 || cumulative <= 80 ? "Alta" : cumulative <= 95 ? "Media" : "Baja";
+      const priorityClass = priority === "Alta" ? "priority-high" : priority === "Media" ? "priority-medium" : "priority-low";
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${index + 1}</td>
+        <td>${item.category}</td>
+        <td>${formatCurrency(item.amount)}</td>
+        <td>${pct(share)}</td>
+        <td>${pct(cumulative)}</td>
+        <td class="${priorityClass}">${priority}</td>
+      `;
+      paretoTable.appendChild(row);
+    });
+  }
+
+  // Category variance
+  categoryVarianceTable.innerHTML = "";
+  const categoryNames = new Set([...grouped.map(item => item.category), ...groupedPrevious.map(item => item.category)]);
+  if (categoryNames.size === 0) {
+    categoryVarianceTable.innerHTML = '<tr><td colspan="5">No hay categorías para comparar.</td></tr>';
+  } else {
+    Array.from(categoryNames).forEach(category => {
+      const current = grouped.find(item => item.category === category)?.amount || 0;
+      const old = groupedPrevious.find(item => item.category === category)?.amount || 0;
+      const diff = current - old;
+      const change = old !== 0 ? diff / old * 100 : 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${category}</td>
+        <td>${formatCurrency(current)}</td>
+        <td>${formatCurrency(old)}</td>
+        <td class="${diff > 0 ? "warning" : diff < 0 ? "good" : ""}">${formatCurrency(diff)}</td>
+        <td>${old === 0 ? "-" : pct(change)}</td>
+      `;
+      categoryVarianceTable.appendChild(row);
+    });
+  }
+
+  // Recurring commitments
+  recurringTable.innerHTML = "";
+  const recurring = transactionsCache
+    .filter(item => item.type === "fixed")
+    .sort((a, b) => getDateParts(a.date).day - getDateParts(b.date).day);
+
+  if (recurring.length === 0) {
+    recurringTable.innerHTML = '<tr><td colspan="4">No hay gastos fijos recurrentes registrados.</td></tr>';
+  } else {
+    recurring.forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${getDateParts(item.date).day}</td>
+        <td>${getCategoryName(item.categoryId)}</td>
+        <td>${item.description || "-"}</td>
+        <td>${formatCurrency(item.amount)}</td>
+      `;
+      recurringTable.appendChild(row);
+    });
+  }
+
+  // Variable analysis
+  variableAnalysisTable.innerHTML = "";
+  [
+    ["Cantidad de gastos variables", variableTransactions.length, "Frecuencia de consumo flexible"],
+    ["Ticket promedio variable", formatCurrency(avgVariableTicket), "Promedio por movimiento variable"],
+    ["Gasto variable más alto", formatCurrency(maxVariable), "Mayor salida flexible del mes"],
+    ["Gasto variable más bajo", formatCurrency(minVariable), "Menor salida flexible del mes"],
+    ["Variables sobre ingreso", pct(totals.income > 0 ? totals.variable / totals.income * 100 : 0), "Meta sugerida: máximo 30%"]
+  ].forEach(([metric, value, reading]) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${metric}</td><td>${value}</td><td>${reading}</td>`;
+    variableAnalysisTable.appendChild(row);
+  });
+
+  // Category matrix by year
+  categoryMatrixHead.innerHTML = "";
+  categoryMatrixBody.innerHTML = "";
+  const expenseCategories = categoriesCache
+    .filter(category => category.kind !== "income")
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  categoryMatrixHead.innerHTML = `
+    <tr>
+      <th>Categoría</th>
+      ${monthNames.map(month => `<th>${month.slice(0, 3)}</th>`).join("")}
+      <th>Total</th>
+    </tr>
+  `;
+
+  if (expenseCategories.length === 0) {
+    categoryMatrixBody.innerHTML = '<tr><td colspan="14">No hay categorías de gasto.</td></tr>';
+  } else {
+    expenseCategories.forEach(category => {
+      const monthlyAmounts = monthNames.map((_, monthIndex) => {
+        return getTransactionsForMonth(selectedYear, monthIndex)
+          .filter(item => item.categoryId === category.id && item.type !== "income")
+          .reduce((sum, item) => sum + item.amount, 0);
+      });
+      const total = monthlyAmounts.reduce((sum, value) => sum + value, 0);
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${category.name}</td>
+        ${monthlyAmounts.map(value => `<td>${value ? formatCurrency(value) : "-"}</td>`).join("")}
+        <td><strong>${formatCurrency(total)}</strong></td>
+      `;
+      categoryMatrixBody.appendChild(row);
+    });
+  }
+
+  // Financial score
+  let score = 100;
+  const scoreFactors = [];
+
+  function addScoreFactor(name, result, impact, penalty) {
+    score -= penalty;
+    scoreFactors.push({ name, result, impact });
+  }
+
+  if (totals.income === 0) addScoreFactor("Ingresos registrados", "Sin ingresos este mes", "Alto", 25);
+  if (totals.savings < 0) addScoreFactor("Ahorro", "Ahorro negativo", "Alto", 30);
+  if (savingsRate < 20 && totals.income > 0) addScoreFactor("Tasa de ahorro", `Solo ${pct(savingsRate)}`, "Medio", 15);
+  if (expenseRate > 80) addScoreFactor("Tasa de gasto", `${pct(expenseRate)} del ingreso`, "Medio", 12);
+  if (fixedRate > 60) addScoreFactor("Gastos fijos", `${pct(fixedRate)} del gasto total`, "Medio", 10);
+  if (top && totals.expenses > 0 && top.amount / totals.expenses * 100 > 50) addScoreFactor("Concentración", `Más del 50% en ${top.category}`, "Medio", 8);
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const scoreClass = score >= 75 ? "score-good" : score >= 50 ? "score-warning" : "score-danger";
+  const scoreLabel = score >= 75 ? "Saludable" : score >= 50 ? "Revisar" : "Riesgo alto";
+
+  financialScoreBox.innerHTML = `
+    <p class="score-number ${scoreClass}">${score}/100</p>
+    <p class="score-label ${scoreClass}">${scoreLabel}</p>
+  `;
+
+  scoreBreakdownTable.innerHTML = "";
+  if (scoreFactors.length === 0) {
+    scoreBreakdownTable.innerHTML = '<tr><td colspan="3">No se detectaron factores negativos fuertes.</td></tr>';
+  } else {
+    scoreFactors.forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${item.name}</td><td>${item.result}</td><td>${item.impact}</td>`;
+      scoreBreakdownTable.appendChild(row);
+    });
+  }
+
+  // Data quality
+  const allYearTransactions = [];
+  monthNames.forEach((_, index) => {
+    allYearTransactions.push(...getTransactionsForMonth(selectedYear, index));
+  });
+
+  const missingDescription = transactionsCache.filter(item => !item.description || !item.description.trim()).length;
+  const zeroAmounts = transactionsCache.filter(item => Number(item.amount) <= 0).length;
+  const categoriesWithoutUse = categoriesCache.filter(category => !transactionsCache.some(item => item.categoryId === category.id)).length;
+
+  dataQualityTable.innerHTML = "";
+  [
+    ["Movimientos sin descripción", missingDescription, "Agrega descripciones para mejores reportes."],
+    ["Movimientos con monto cero", zeroAmounts, "Corrige o elimina registros inválidos."],
+    ["Categorías sin uso", categoriesWithoutUse, "Elimina o consolida categorías que no usas."],
+    ["Meses con datos en el año", activeMonths.length, "Mientras más meses registres, mejores serán las proyecciones."]
+  ].forEach(([check, result, suggestion]) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${check}</td><td>${result}</td><td>${suggestion}</td>`;
+    dataQualityTable.appendChild(row);
+  });
+
+  // Optimization plan
+  optimizationTable.innerHTML = "";
+  const targetSavings = totals.income * 0.20;
+  const gap = Math.max(0, targetSavings - totals.savings);
+  const adjustable = grouped.filter(item => item.type === "variable");
+  if (gap <= 0) {
+    optimizationTable.innerHTML = '<tr><td colspan="4">Ya cumples o superas una meta de ahorro del 20% este mes.</td></tr>';
+  } else if (adjustable.length === 0) {
+    optimizationTable.innerHTML = '<tr><td colspan="4">No hay gastos variables para sugerir reducción.</td></tr>';
+  } else {
+    const totalAdjustable = adjustable.reduce((sum, item) => sum + item.amount, 0);
+    adjustable.slice(0, 5).forEach(item => {
+      const proportionalCut = totalAdjustable > 0 ? gap * (item.amount / totalAdjustable) : 0;
+      const safeCut = Math.min(item.amount * 0.25, proportionalCut);
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${item.category}</td>
+        <td>${formatCurrency(item.amount)}</td>
+        <td>${formatCurrency(safeCut)}</td>
+        <td>${formatCurrency(Math.max(0, item.amount - safeCut))}</td>
+      `;
+      optimizationTable.appendChild(row);
+    });
+  }
+
+  // Alerts, suggestions, insights
   const alerts = [];
   const suggestions = [];
   const insights = [];
 
-  if (totals.income === 0) alerts.push("No hay ingresos registrados este mes.");
-  if (totals.savings < 0) alerts.push("Tus gastos superan tus ingresos.");
+  if (totals.income === 0) alerts.push("No hay ingresos registrados este mes; los porcentajes no serán totalmente útiles.");
+  if (totals.savings < 0) alerts.push("Tus gastos superan tus ingresos: hay ahorro negativo.");
   if (expenseRate > 80) alerts.push("Tus gastos consumen más del 80% de tus ingresos.");
   if (fixedRate > 60) alerts.push("Tus gastos fijos pesan más del 60% de tus gastos totales.");
-  if (top && totals.income > 0 && top.amount / totals.income * 100 > 35) {
-    alerts.push(`La categoría "${top.category}" supera el 35% de tus ingresos.`);
-  }
+  if (top && totals.income > 0 && top.amount / totals.income * 100 > 35) alerts.push(`La categoría "${top.category}" supera el 35% de tus ingresos.`);
+  if (grouped.length > 0 && cumulative > 80 && grouped.length <= 3) alerts.push("Tus gastos están muy concentrados en pocas categorías.");
 
-  if (totals.variable > totals.fixed) suggestions.push("Crea límites semanales para tus gastos variables.");
-  if (savingsRate < 20 && totals.income > 0) suggestions.push("Intenta separar el ahorro apenas recibes ingresos.");
-  if (top) suggestions.push(`Revisa "${top.category}", porque es tu mayor salida del mes.`);
-  if (previous.expenses > 0 && totals.expenses > previous.expenses) suggestions.push("Tus gastos subieron vs el mes anterior.");
+  if (totals.variable > totals.fixed) suggestions.push("Crea límites semanales para tus gastos variables; son el área con más oportunidad de ajuste.");
+  if (savingsRate < 20 && totals.income > 0) suggestions.push("Automatiza el ahorro al inicio del mes para acercarte al 20%.");
+  if (top) suggestions.push(`Revisa "${top.category}": es tu mayor salida y puede ser el mejor punto para optimizar.`);
+  if (previous.expenses > 0 && totals.expenses > previous.expenses) suggestions.push("Tus gastos subieron vs el mes anterior; revisa la tabla de variación por categoría.");
+  if (recurring.length > 0) suggestions.push("Revisa tus compromisos recurrentes cada 3 meses: suelen tener oportunidades de reducción.");
+  if (missingDescription > 0) suggestions.push("Agrega descripciones a tus movimientos para mejorar la calidad del análisis.");
 
   if (totals.income === 0) {
     insights.push("Empieza registrando ingresos para que el análisis sea más preciso.");
   } else if (savingsRate >= 20) {
     insights.push("Tu ahorro está en una zona saludable según la regla 50/30/20.");
   } else {
-    insights.push("Tu ahorro está por debajo del 20%; revisa gastos variables y pagos recurrentes.");
+    insights.push("Tu ahorro está por debajo del 20%; el sistema recomienda revisar gastos variables y pagos recurrentes.");
+  }
+
+  if (previous.expenses > 0) {
+    const change = (totals.expenses - previous.expenses) / previous.expenses * 100;
+    insights.push(`Tus gastos totales cambiaron ${pct(change)} frente al mes anterior.`);
   }
 
   if (activeMonths.length > 0) {
     insights.push(`Tu ahorro mensual promedio del año es ${formatCurrency(avgSavings)}.`);
   }
 
+  if (top) {
+    insights.push(`Tu mayor categoría representa ${pct(totals.expenses > 0 ? top.amount / totals.expenses * 100 : 0)} de tus gastos del mes.`);
+  }
+
   alertsList.innerHTML = (alerts.length ? alerts : ["Sin alertas críticas para este mes."]).map(item => `<li>${item}</li>`).join("");
   suggestionsList.innerHTML = (suggestions.length ? suggestions : ["Agrega más movimientos para generar sugerencias más precisas."]).map(item => `<li>${item}</li>`).join("");
   insightsList.innerHTML = insights.map(item => `<li>${item}</li>`).join("");
+}
+
+
+function cumulativeArray(values) {
+  let total = 0;
+  return values.map(value => {
+    total += value;
+    return total;
+  });
+}
+
+function renderParetoChart() {
+  const canvas = document.getElementById("paretoChart");
+  if (!canvas) return;
+
+  const grouped = groupByCategory(getFilteredTransactions(), false);
+  const total = grouped.reduce((sum, item) => sum + item.amount, 0);
+  let cumulative = 0;
+
+  const data = grouped.map(item => {
+    const share = total > 0 ? (item.amount / total) * 100 : 0;
+    cumulative += share;
+    return {
+      category: item.category,
+      amount: item.amount,
+      cumulative
+    };
+  });
+
+  if (paretoChart) paretoChart.destroy();
+
+  paretoChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: data.map(item => item.category),
+      datasets: [
+        {
+          label: "Monto",
+          data: data.map(item => item.amount),
+          yAxisID: "y"
+        },
+        {
+          label: "% acumulado",
+          type: "line",
+          data: data.map(item => item.cumulative),
+          yAxisID: "y1",
+          tension: 0.25
+        }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      indexAxis: isMobile() ? "y" : "x",
+      scales: {
+        y: { beginAtZero: true },
+        y1: {
+          beginAtZero: true,
+          max: 100,
+          position: "right",
+          grid: { drawOnChartArea: false },
+          ticks: { callback: value => value + "%" }
+        }
+      }
+    }
+  });
+}
+
+function renderCategoryShareChart() {
+  const canvas = document.getElementById("categoryShareChart");
+  if (!canvas) return;
+
+  const grouped = groupByCategory(getFilteredTransactions(), false);
+
+  if (categoryShareChart) categoryShareChart.destroy();
+
+  categoryShareChart = new Chart(canvas, {
+    type: "pie",
+    data: {
+      labels: grouped.map(item => item.category),
+      datasets: [{
+        label: "Participación",
+        data: grouped.map(item => item.amount)
+      }]
+    },
+    options: chartOptions()
+  });
+}
+
+function renderFixedVariableStackedChart() {
+  const canvas = document.getElementById("fixedVariableStackedChart");
+  if (!canvas) return;
+
+  const data = getYearlyTotals();
+
+  if (fixedVariableStackedChart) fixedVariableStackedChart.destroy();
+
+  fixedVariableStackedChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: data.map(item => isMobile() ? item.month.slice(0, 3) : item.month),
+      datasets: [
+        { label: "Gastos fijos", data: data.map(item => item.fixed) },
+        { label: "Gastos variables", data: data.map(item => item.variable) }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderCumulativeSavingsChart() {
+  const canvas = document.getElementById("cumulativeSavingsChart");
+  if (!canvas) return;
+
+  const data = getYearlyTotals();
+  const cumulativeSavings = cumulativeArray(data.map(item => item.savings));
+
+  if (cumulativeSavingsChart) cumulativeSavingsChart.destroy();
+
+  cumulativeSavingsChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: data.map(item => isMobile() ? item.month.slice(0, 3) : item.month),
+      datasets: [{
+        label: "Ahorro acumulado",
+        data: cumulativeSavings,
+        tension: 0.25,
+        fill: true
+      }]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: { beginAtZero: false }
+      }
+    }
+  });
+}
+
+function renderCumulativeExpensesChart() {
+  const canvas = document.getElementById("cumulativeExpensesChart");
+  if (!canvas) return;
+
+  const data = getYearlyTotals();
+
+  if (cumulativeExpensesChart) cumulativeExpensesChart.destroy();
+
+  cumulativeExpensesChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: data.map(item => isMobile() ? item.month.slice(0, 3) : item.month),
+      datasets: [
+        { label: "Fijos acumulados", data: cumulativeArray(data.map(item => item.fixed)), tension: 0.25 },
+        { label: "Variables acumulados", data: cumulativeArray(data.map(item => item.variable)), tension: 0.25 },
+        { label: "Total acumulado", data: cumulativeArray(data.map(item => item.expenses)), tension: 0.25 }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderIncomeExpenseRatioChart() {
+  const canvas = document.getElementById("incomeExpenseRatioChart");
+  if (!canvas) return;
+
+  const totals = calculateTotals(getFilteredTransactions());
+
+  if (incomeExpenseRatioChart) incomeExpenseRatioChart.destroy();
+
+  incomeExpenseRatioChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: ["Ingresos", "Gastos", "Ahorro"],
+      datasets: [{
+        label: "Monto",
+        data: [totals.income, totals.expenses, totals.savings]
+      }]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderRuleScoreChart() {
+  const canvas = document.getElementById("ruleScoreChart");
+  if (!canvas) return;
+
+  const totals = calculateTotals(getFilteredTransactions());
+  const fixedPct = totals.income > 0 ? totals.fixed / totals.income * 100 : 0;
+  const variablePct = totals.income > 0 ? totals.variable / totals.income * 100 : 0;
+  const savingsPct = totals.income > 0 ? totals.savings / totals.income * 100 : 0;
+
+  if (ruleScoreChart) ruleScoreChart.destroy();
+
+  ruleScoreChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: ["Fijos", "Variables", "Ahorro"],
+      datasets: [
+        { label: "Actual %", data: [fixedPct, variablePct, savingsPct] },
+        { label: "Meta %", data: [50, 30, 20] }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: value => value + "%" }
+        }
+      }
+    }
+  });
+}
+
+function renderCategoryHeatmap() {
+  const container = document.getElementById("categoryHeatmap");
+  if (!container) return;
+
+  const selectedYear = Number(yearFilter.value);
+  const expenseCategories = categoriesCache
+    .filter(category => category.kind !== "income")
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const matrix = expenseCategories.map(category => {
+    const values = monthNames.map((_, monthIndex) => {
+      return getTransactionsForMonth(selectedYear, monthIndex)
+        .filter(item => item.categoryId === category.id && item.type !== "income")
+        .reduce((sum, item) => sum + item.amount, 0);
+    });
+
+    return {
+      category: category.name,
+      values
+    };
+  });
+
+  const maxValue = Math.max(0, ...matrix.flatMap(row => row.values));
+
+  function heatClass(value) {
+    if (!value || maxValue === 0) return "heat-0";
+    const ratio = value / maxValue;
+    if (ratio < 0.25) return "heat-1";
+    if (ratio < 0.50) return "heat-2";
+    if (ratio < 0.75) return "heat-3";
+    return "heat-4";
+  }
+
+  container.innerHTML = `
+    <div class="heatmap-grid">
+      <div class="heatmap-head">Categoría</div>
+      ${monthNames.map(month => `<div class="heatmap-head">${month.slice(0, 3)}</div>`).join("")}
+      ${
+        matrix.length === 0
+          ? `<div class="heatmap-label">Sin categorías</div>${monthNames.map(() => `<div class="heatmap-cell heat-0">-</div>`).join("")}`
+          : matrix.map(row => `
+              <div class="heatmap-label">${row.category}</div>
+              ${row.values.map(value => `<div class="heatmap-cell ${heatClass(value)}">${value ? formatCurrency(value) : "-"}</div>`).join("")}
+            `).join("")
+      }
+    </div>
+  `;
+}
+
+function renderChartsSummaryTable() {
+  const table = document.getElementById("chartsSummaryTable");
+  if (!table) return;
+
+  const totals = calculateTotals(getFilteredTransactions());
+  const grouped = groupByCategory(getFilteredTransactions(), false);
+  const top = grouped[0];
+  const yearly = getYearlyTotals();
+  const bestSavingsMonth = yearly.reduce((best, item) => item.savings > best.savings ? item : best, yearly[0]);
+  const worstExpenseMonth = yearly.reduce((worst, item) => item.expenses > worst.expenses ? item : worst, yearly[0]);
+  const savingsRate = totals.income > 0 ? totals.savings / totals.income * 100 : 0;
+
+  const rows = [
+    ["Categoría más alta", top ? `${top.category} - ${formatCurrency(top.amount)}` : "-", "Prioriza esta categoría para optimizar gastos."],
+    ["Tasa de ahorro mensual", pct(savingsRate), savingsRate >= 20 ? "Buen nivel de ahorro." : "Conviene revisar gastos variables."],
+    ["Mejor mes de ahorro", bestSavingsMonth ? `${bestSavingsMonth.month} - ${formatCurrency(bestSavingsMonth.savings)}` : "-", "Mes con mayor ahorro del año seleccionado."],
+    ["Mes con más gastos", worstExpenseMonth ? `${worstExpenseMonth.month} - ${formatCurrency(worstExpenseMonth.expenses)}` : "-", "Mes que requiere revisión de categorías."],
+    ["Gastos fijos del mes", formatCurrency(totals.fixed), "Compromisos recurrentes."],
+    ["Gastos variables del mes", formatCurrency(totals.variable), "Área con mayor posibilidad de ajuste."]
+  ];
+
+  table.innerHTML = rows.map(row => `
+    <tr>
+      <td>${row[0]}</td>
+      <td>${row[1]}</td>
+      <td>${row[2]}</td>
+    </tr>
+  `).join("");
+}
+
+function renderAllProCharts() {
+  renderMonthlyChartIn("monthlyChart", "monthly");
+  renderMonthlyChartIn("chartsMonthlyChart", "chartsMonthly");
+  renderCategoryReportChart();
+  renderYearlyChart();
+  renderExpenseTrendChart();
+  renderParetoChart();
+  renderCategoryShareChart();
+  renderFixedVariableStackedChart();
+  renderCumulativeSavingsChart();
+  renderCumulativeExpensesChart();
+  renderIncomeExpenseRatioChart();
+  renderRuleScoreChart();
+  renderCategoryHeatmap();
+  renderChartsSummaryTable();
 }
 
 function refreshDashboard() {
@@ -795,11 +1362,7 @@ function refreshDashboard() {
   renderMonthlyDetailTable();
   renderTransactionTable();
   renderCategoriesTable();
-  renderMonthlyChartIn("monthlyChart", "monthly");
-  renderMonthlyChartIn("chartsMonthlyChart", "chartsMonthly");
-  renderCategoryReportChart();
-  renderYearlyChart();
-  renderExpenseTrendChart();
+  renderAllProCharts();
   renderAnalytics();
 }
 
@@ -971,11 +1534,7 @@ function showSection(sectionId) {
   pageTitle.textContent = titles[sectionId] || "Mi Balance";
 
   setTimeout(() => {
-    renderMonthlyChartIn("monthlyChart", "monthly");
-    renderMonthlyChartIn("chartsMonthlyChart", "chartsMonthly");
-    renderCategoryReportChart();
-    renderYearlyChart();
-    renderExpenseTrendChart();
+    renderAllProCharts();
     renderAnalytics();
   }, 120);
 

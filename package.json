@@ -1,7 +1,7 @@
 {
-  "name": "balance-app-corregida-responsive",
-  "version": "1.0.0",
-  "description": "App responsive de balance personal con db.json",
+  "name": "balance-app-graficos-pro-corregida",
+  "version": "5.1.0",
+  "description": "App responsive de balance personal con gr\u00e1ficos pro, puerto autom\u00e1tico y gastos recurrentes mensuales",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
