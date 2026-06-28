@@ -1,1 +1,1046 @@
-const pageTitle=document.getElementById("pageTitle");const navButtons=document.querySelectorAll(".nav-btn");const sections=document.querySelectorAll(".page-section");const form=document.getElementById("transactionForm");const submitBtn=document.getElementById("submitBtn");const cancelEditBtn=document.getElementById("cancelEditBtn");const dateInput=document.getElementById("date");const typeInput=document.getElementById("type");const categorySelect=document.getElementById("categorySelect");const amountInput=document.getElementById("amount");const descriptionInput=document.getElementById("description");const categoryForm=document.getElementById("categoryForm");const categoryNameInput=document.getElementById("categoryName");const categoryKindInput=document.getElementById("categoryKind");const categorySubmitBtn=document.getElementById("categorySubmitBtn");const categoryCancelBtn=document.getElementById("categoryCancelBtn");const categoriesTable=document.getElementById("categoriesTable");const monthFilter=document.getElementById("monthFilter");const yearFilter=document.getElementById("yearFilter");const totalIncomeEl=document.getElementById("totalIncome");const totalFixedEl=document.getElementById("totalFixed");const totalVariableEl=document.getElementById("totalVariable");const savingsBalanceEl=document.getElementById("savingsBalance");const transactionTable=document.getElementById("transactionTable");const monthlyDetailTable=document.getElementById("monthlyDetailTable");const exportBtn=document.getElementById("exportBtn");const analyticsCards=document.getElementById("analyticsCards");const analyticsCategoryTable=document.getElementById("analyticsCategoryTable");const insightsList=document.getElementById("insightsList");const ruleTable=document.getElementById("ruleTable");const comparisonTable=document.getElementById("comparisonTable");const averageTable=document.getElementById("averageTable");const projectionTable=document.getElementById("projectionTable");const alertsList=document.getElementById("alertsList");const suggestionsList=document.getElementById("suggestionsList");let monthlyChart=null,chartsMonthlyChart=null,yearlyChart=null,categoryReportChart=null,expenseTrendChart=null;let transactionsCache=[],categoriesCache=[],editingTransactionId=null,editingCategoryId=null;const monthNames=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];async function apiGetDB(){const r=await fetch("/api/db");if(!r.ok)throw new Error("No se pudo leer db.json");return r.json()}async function apiCreateTransaction(t){const r=await fetch("/api/transactions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(t)});if(!r.ok)throw new Error("No se pudo guardar el movimiento.");return r.json()}async function apiUpdateTransaction(id,t){const r=await fetch(`/api/transactions/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(t)});if(!r.ok)throw new Error("No se pudo actualizar el movimiento.");return r.json()}async function apiDeleteTransaction(id){const r=await fetch(`/api/transactions/${id}`,{method:"DELETE"});if(!r.ok)throw new Error("No se pudo eliminar el movimiento.");return r.json()}async function apiCreateCategory(c){const r=await fetch("/api/categories",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(c)});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo crear la categoría.");return d}async function apiUpdateCategory(id,c){const r=await fetch(`/api/categories/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(c)});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo actualizar la categoría.");return d}async function apiDeleteCategory(id){const r=await fetch(`/api/categories/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo eliminar la categoría.");return d}async function refreshData(){const db=await apiGetDB();transactionsCache=db.transactions||[];categoriesCache=db.categories||[]}function formatCurrency(v){return new Intl.NumberFormat("es-CA",{style:"currency",currency:"CAD"}).format(v)}function getCurrentDateValue(){return new Date().toISOString().split("T")[0]}function getDateParts(s){const d=new Date(s+"T00:00:00");return{year:d.getFullYear(),month:d.getMonth(),day:d.getDate()}}function getMonth(s){return getDateParts(s).month}function getYear(s){return getDateParts(s).year}function getLastDayOfMonth(y,m){return new Date(y,m+1,0).getDate()}function buildMonthlyDate(originalDate,targetYear,targetMonth){const originalDay=getDateParts(originalDate).day,lastDay=getLastDayOfMonth(targetYear,targetMonth),validDay=Math.min(originalDay,lastDay);return`${targetYear}-${String(targetMonth+1).padStart(2,"0")}-${String(validDay).padStart(2,"0")}`}function isSameOrAfterMonth(targetYear,targetMonth,startDate){const s=getDateParts(startDate);return targetYear>s.year||targetYear===s.year&&targetMonth>=s.month}function getTypeLabel(type){return{income:"Ingreso",fixed:"Gasto fijo",variable:"Gasto variable",savings:"Ahorro"}[type]||type}function getCategoryName(id){const c=categoriesCache.find(x=>x.id===id);return c?c.name:"Sin categoría"}function getCategoryKind(id){const c=categoriesCache.find(x=>x.id===id);return c?c.kind:"variable"}function setupFilters(){const currentYear=new Date().getFullYear();monthFilter.innerHTML="";yearFilter.innerHTML="";monthNames.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m;monthFilter.appendChild(o)});const years=new Set(transactionsCache.map(x=>getYear(x.date)));years.add(currentYear);Array.from(years).sort((a,b)=>b-a).forEach(y=>{const o=document.createElement("option");o.value=y;o.textContent=y;yearFilter.appendChild(o)});monthFilter.value=new Date().getMonth();yearFilter.value=currentYear}function setupYearFilterIfNeeded(){const selectedYear=yearFilter.value;const years=new Set(transactionsCache.map(x=>String(getYear(x.date))));years.add(String(new Date().getFullYear()));if(!years.has(selectedYear))years.add(selectedYear);const current=Array.from(yearFilter.options).map(o=>o.value);const next=Array.from(years).sort((a,b)=>Number(b)-Number(a));if(JSON.stringify(current)!==JSON.stringify(next)){yearFilter.innerHTML="";next.forEach(y=>{const o=document.createElement("option");o.value=y;o.textContent=y;yearFilter.appendChild(o)});yearFilter.value=selectedYear}}function renderCategoryOptions(){const selectedType=typeInput.value,selectedValue=categorySelect.value;const cats=categoriesCache.filter(c=>c.kind===selectedType).sort((a,b)=>a.name.localeCompare(b.name));categorySelect.innerHTML="";if(cats.length===0){const o=document.createElement("option");o.value="";o.textContent="Primero crea una categoría";categorySelect.appendChild(o);return}cats.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.name;categorySelect.appendChild(o)});if(cats.some(c=>c.id===selectedValue))categorySelect.value=selectedValue}function getTransactionsForMonth(year,month){const normal=transactionsCache.filter(x=>x.type!=="fixed"&&getMonth(x.date)===month&&getYear(x.date)===year);const recurring=transactionsCache.filter(x=>x.type==="fixed").filter(x=>isSameOrAfterMonth(year,month,x.date)).map(x=>({...x,originalId:x.id,id:`${x.id}-${year}-${month}`,date:buildMonthlyDate(x.date,year,month),isGeneratedFixed:true}));return[...normal,...recurring]}function getFilteredTransactions(){return getTransactionsForMonth(Number(yearFilter.value),Number(monthFilter.value))}function calculateTotals(transactions){return transactions.reduce((t,x)=>{if(x.type==="income")t.income+=x.amount;if(x.type==="fixed")t.fixed+=x.amount;if(x.type==="variable")t.variable+=x.amount;t.savings=t.income-t.fixed-t.variable;return t},{income:0,fixed:0,variable:0,savings:0})}function updateSummary(){const t=calculateTotals(getFilteredTransactions());totalIncomeEl.textContent=formatCurrency(t.income);totalFixedEl.textContent=formatCurrency(t.fixed);totalVariableEl.textContent=formatCurrency(t.variable);savingsBalanceEl.textContent=formatCurrency(t.savings)}function groupByCategory(transactions,includeIncome=false){const grouped={};transactions.forEach(x=>{if(!includeIncome&&x.type==="income")return;const name=getCategoryName(x.categoryId),key=x.categoryId||name;if(!grouped[key])grouped[key]={category:name,type:x.type,amount:0};grouped[key].amount+=x.amount});return Object.values(grouped).sort((a,b)=>b.amount-a.amount)}function renderMonthlyDetailTable(){const transactions=getFilteredTransactions(),totals=calculateTotals(transactions);const rows=transactions.map(x=>({amount:x.amount,category:getCategoryName(x.categoryId),description:x.description||"-",type:x.type,originalId:x.originalId||x.id}));rows.push({amount:totals.savings,category:"Saldo restante",description:"Ahorro del mes",type:"savings",originalId:null});monthlyDetailTable.innerHTML="";if(rows.length===0){monthlyDetailTable.innerHTML='<tr><td colspan="5">No hay información para mostrar.</td></tr>';return}rows.sort((a,b)=>({income:1,fixed:2,variable:3,savings:4}[a.type]-{income:1,fixed:2,variable:3,savings:4}[b.type])).forEach(x=>{const tr=document.createElement("tr");if(x.type==="income")tr.classList.add("income-row");if(x.type==="fixed"||x.type==="variable")tr.classList.add("expense-row");if(x.type==="savings")tr.classList.add("savings-row");const action=x.type==="fixed"?`<button class="edit" data-edit-transaction-id="${x.originalId}">Editar</button>`:"-";tr.innerHTML=`<td>${formatCurrency(x.amount)}</td><td>${x.category}</td><td>${x.description}</td><td>${getTypeLabel(x.type)}</td><td>${action}</td>`;monthlyDetailTable.appendChild(tr)})}function renderTransactionTable(){const transactions=getFilteredTransactions();transactionTable.innerHTML="";if(transactions.length===0){transactionTable.innerHTML='<tr><td colspan="6">No hay movimientos registrados para este mes.</td></tr>';return}transactions.sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(x=>{const tr=document.createElement("tr"),deleteId=x.isGeneratedFixed?x.originalId:x.id,deleteText=x.isGeneratedFixed?"Eliminar serie":"Eliminar",desc=x.isGeneratedFixed?`${x.description||"-"} · Recurrente`:x.description||"-";tr.innerHTML=`<td>${x.date}</td><td>${getTypeLabel(x.type)}</td><td>${getCategoryName(x.categoryId)}</td><td>${desc}</td><td>${formatCurrency(x.amount)}</td><td><button class="danger" data-delete-transaction-id="${deleteId}">${deleteText}</button></td>`;transactionTable.appendChild(tr)})}function renderCategoriesTable(){categoriesTable.innerHTML="";if(categoriesCache.length===0){categoriesTable.innerHTML='<tr><td colspan="4">No hay categorías registradas.</td></tr>';return}categoriesCache.sort((a,b)=>a.kind.localeCompare(b.kind)||a.name.localeCompare(b.name)).forEach(c=>{const used=transactionsCache.filter(t=>t.categoryId===c.id).length;const tr=document.createElement("tr");tr.innerHTML=`<td>${c.name}</td><td>${getTypeLabel(c.kind)}</td><td>${used} movimiento(s)</td><td><button class="edit" data-edit-category-id="${c.id}">Editar</button> <button class="danger" data-delete-category-id="${c.id}">Eliminar</button></td>`;categoriesTable.appendChild(tr)})}function chartOptions(){return{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label||ctx.label}: ${formatCurrency(ctx.raw)}`}}}}}function renderMonthlyChartIn(canvasId,name){const transactions=getFilteredTransactions(),t=calculateTotals(transactions),ctx=document.getElementById(canvasId);if(!ctx)return;if(name==="monthly"&&monthlyChart)monthlyChart.destroy();if(name==="chartsMonthly"&&chartsMonthlyChart)chartsMonthlyChart.destroy();const chart=new Chart(ctx,{type:"doughnut",data:{labels:["Gastos fijos","Gastos variables","Ahorro"],datasets:[{label:"Monto",data:[Math.max(t.fixed,0),Math.max(t.variable,0),Math.max(t.savings,0)],backgroundColor:["#dc2626","#f97316","#2563eb"]}]},options:chartOptions()});if(name==="monthly")monthlyChart=chart;if(name==="chartsMonthly")chartsMonthlyChart=chart}function renderCategoryReportChart(){const grouped=groupByCategory(getFilteredTransactions(),false),ctx=document.getElementById("categoryReportChart");if(categoryReportChart)categoryReportChart.destroy();categoryReportChart=new Chart(ctx,{type:"bar",data:{labels:grouped.map(x=>x.category),datasets:[{label:"Gasto por categoría",data:grouped.map(x=>x.amount),backgroundColor:"#7c3aed"}]},options:{...chartOptions(),indexAxis:grouped.length>5?"y":"x",scales:{y:{beginAtZero:true},x:{beginAtZero:true}}}})}function getYearlyTotals(){const y=Number(yearFilter.value);return monthNames.map((m,i)=>{const t=calculateTotals(getTransactionsForMonth(y,i));return{month:m,income:t.income,fixed:t.fixed,variable:t.variable,savings:t.savings}})}function renderYearlyChart(){const d=getYearlyTotals(),ctx=document.getElementById("yearlyChart");if(yearlyChart)yearlyChart.destroy();yearlyChart=new Chart(ctx,{type:"bar",data:{labels:d.map(x=>x.month),datasets:[{label:"Ingresos",data:d.map(x=>x.income),backgroundColor:"#16a34a"},{label:"Gastos fijos",data:d.map(x=>x.fixed),backgroundColor:"#dc2626"},{label:"Gastos variables",data:d.map(x=>x.variable),backgroundColor:"#f97316"},{label:"Ahorro",data:d.map(x=>x.savings),backgroundColor:"#2563eb"}]},options:{...chartOptions(),scales:{y:{beginAtZero:true}}}})}function renderExpenseTrendChart(){const d=getYearlyTotals(),ctx=document.getElementById("expenseTrendChart");if(!ctx)return;if(expenseTrendChart)expenseTrendChart.destroy();expenseTrendChart=new Chart(ctx,{type:"line",data:{labels:d.map(x=>x.month),datasets:[{label:"Gastos totales",data:d.map(x=>x.fixed+x.variable),borderColor:"#dc2626",backgroundColor:"#dc2626",tension:.25},{label:"Ahorro",data:d.map(x=>x.savings),borderColor:"#2563eb",backgroundColor:"#2563eb",tension:.25}]},options:{...chartOptions(),scales:{y:{beginAtZero:true}}}})}function pct(v){return `${(Number.isFinite(v)?v:0).toFixed(1)}%`}function rowClassByStatus(status){if(status==="OK")return"good";if(status==="Revisar")return"warning";return"danger-text"}function getPreviousMonthInfo(){let y=Number(yearFilter.value),m=Number(monthFilter.value)-1;if(m<0){m=11;y--}return{year:y,month:m,transactions:getTransactionsForMonth(y,m)}}function renderAnalytics(){const transactions=getFilteredTransactions(),totals=calculateTotals(transactions),prevInfo=getPreviousMonthInfo(),prevTotals=calculateTotals(prevInfo.transactions),expenses=totals.fixed+totals.variable,savingsRate=totals.income>0?totals.savings/totals.income*100:0,expenseRate=totals.income>0?expenses/totals.income*100:0,fixedRate=expenses>0?totals.fixed/expenses*100:0,variableRate=expenses>0?totals.variable/expenses*100:0,grouped=groupByCategory(transactions,false),top=grouped[0],yearly=getYearlyTotals(),activeMonths=yearly.filter(x=>x.income||x.fixed||x.variable||x.savings),monthsCount=Math.max(activeMonths.length,1),yearIncome=yearly.reduce((a,x)=>a+x.income,0),yearFixed=yearly.reduce((a,x)=>a+x.fixed,0),yearVariable=yearly.reduce((a,x)=>a+x.variable,0),yearExpenses=yearFixed+yearVariable,yearSavings=yearly.reduce((a,x)=>a+x.savings,0),avgIncome=yearIncome/monthsCount,avgFixed=yearFixed/monthsCount,avgVariable=yearVariable/monthsCount,avgExpenses=yearExpenses/monthsCount,avgSavings=yearSavings/monthsCount,projectedIncome=avgIncome*12,projectedExpenses=avgExpenses*12,projectedSavings=avgSavings*12,dailyExpense=expenses/30;analyticsCards.innerHTML=`<div class="analytics-card"><h4>Tasa de ahorro</h4><p>${pct(savingsRate)}</p><small>Ahorro / ingresos</small></div><div class="analytics-card"><h4>Tasa de gasto</h4><p>${pct(expenseRate)}</p><small>Gastos / ingresos</small></div><div class="analytics-card"><h4>Fijos sobre gastos</h4><p>${pct(fixedRate)}</p><small>Peso de pagos recurrentes</small></div><div class="analytics-card"><h4>Variables sobre gastos</h4><p>${pct(variableRate)}</p><small>Área más flexible</small></div><div class="analytics-card"><h4>Gasto diario estimado</h4><p>${formatCurrency(dailyExpense)}</p><small>Promedio simple del mes</small></div><div class="analytics-card"><h4>Ahorro proyectado</h4><p>${formatCurrency(projectedSavings)}</p><small>Según promedio del año</small></div><div class="analytics-card"><h4>Categoría más alta</h4><p>${top?top.category:"-"}</p><small>${top?formatCurrency(top.amount):"Sin datos"}</small></div><div class="analytics-card"><h4>Meses con datos</h4><p>${activeMonths.length}</p><small>Año seleccionado</small></div>`;analyticsCategoryTable.innerHTML="";if(grouped.length===0){analyticsCategoryTable.innerHTML='<tr><td colspan="4">No hay gastos para analizar.</td></tr>'}else grouped.forEach(x=>{const percent=totals.income>0?x.amount/totals.income*100:0;const tr=document.createElement("tr");tr.innerHTML=`<td>${x.category}</td><td>${getTypeLabel(x.type)}</td><td>${formatCurrency(x.amount)}</td><td>${pct(percent)}</td>`;analyticsCategoryTable.appendChild(tr)});ruleTable.innerHTML="";[{name:"Necesidades / fijos",amount:totals.fixed,goal:"≤ 50%",value:totals.income>0?totals.fixed/totals.income*100:0,limit:50,mode:"max"},{name:"Variables / estilo de vida",amount:totals.variable,goal:"≤ 30%",value:totals.income>0?totals.variable/totals.income*100:0,limit:30,mode:"max"},{name:"Ahorro",amount:totals.savings,goal:"≥ 20%",value:savingsRate,limit:20,mode:"min"}].forEach(x=>{const status=x.mode==="max"?(x.value<=x.limit?"OK":"Revisar"):(x.value>=x.limit?"OK":"Bajo");const tr=document.createElement("tr");tr.innerHTML=`<td>${x.name}</td><td>${formatCurrency(x.amount)}</td><td>${pct(x.value)}</td><td>${x.goal}</td><td class="${rowClassByStatus(status)}">${status}</td>`;ruleTable.appendChild(tr)});comparisonTable.innerHTML="";[["Ingresos",totals.income,prevTotals.income],["Gastos fijos",totals.fixed,prevTotals.fixed],["Gastos variables",totals.variable,prevTotals.variable],["Gastos totales",expenses,prevTotals.fixed+prevTotals.variable],["Ahorro",totals.savings,prevTotals.savings]].forEach(([name,current,previous])=>{const diff=current-previous;const tr=document.createElement("tr");tr.innerHTML=`<td>${name}</td><td>${formatCurrency(current)}</td><td>${formatCurrency(previous)}</td><td class="${diff>0?"warning":diff<0?"good":""}">${formatCurrency(diff)}</td>`;comparisonTable.appendChild(tr)});averageTable.innerHTML="";[["Ingresos",avgIncome,yearIncome],["Gastos fijos",avgFixed,yearFixed],["Gastos variables",avgVariable,yearVariable],["Gastos totales",avgExpenses,yearExpenses],["Ahorro",avgSavings,yearSavings]].forEach(([name,avg,total])=>{const tr=document.createElement("tr");tr.innerHTML=`<td>${name}</td><td>${formatCurrency(avg)}</td><td>${formatCurrency(total)}</td>`;averageTable.appendChild(tr)});projectionTable.innerHTML="";[["Ingresos",projectedIncome,"Estimado según meses con datos"],["Gastos",projectedExpenses,"Proyección de salida anual"],["Ahorro",projectedSavings,projectedSavings>=0?"Vas en positivo si mantienes el ritmo":"Riesgo de cerrar el año en negativo"]].forEach(([name,value,comment])=>{const tr=document.createElement("tr");tr.innerHTML=`<td>${name}</td><td>${formatCurrency(value)}</td><td>${comment}</td>`;projectionTable.appendChild(tr)});const alerts=[],suggestions=[],insights=[];if(totals.income===0)alerts.push("No hay ingresos registrados este mes; los porcentajes no serán totalmente útiles.");if(totals.savings<0)alerts.push("Tus gastos superan tus ingresos: hay ahorro negativo.");if(expenseRate>80)alerts.push("Tus gastos consumen más del 80% de tus ingresos.");if(fixedRate>60)alerts.push("Tus gastos fijos pesan más del 60% de tus gastos totales.");if(top&&totals.income>0&&top.amount/totals.income*100>35)alerts.push(`La categoría "${top.category}" supera el 35% de tus ingresos.`);if(totals.variable>totals.fixed)suggestions.push("Crea límites semanales para tus gastos variables; son el área con más oportunidad de ajuste.");if(savingsRate<20&&totals.income>0)suggestions.push("Intenta separar el ahorro apenas recibes ingresos, aunque sea una cantidad pequeña fija.");if(top)suggestions.push(`Revisa "${top.category}": es tu mayor salida del mes y puede ser el mejor punto para optimizar.`);if(prevTotals.fixed+prevTotals.variable>0&&expenses>prevTotals.fixed+prevTotals.variable)suggestions.push("Tus gastos subieron vs el mes anterior; revisa qué categoría causó el aumento.");if(totals.fixed>0)suggestions.push("Evalúa tus pagos recurrentes cada 3 meses: internet, celular, seguros y suscripciones suelen tener margen de reducción.");if(grouped.length>=3)suggestions.push("Prioriza las 3 categorías más altas antes de intentar ajustar todo al mismo tiempo.");if(totals.income===0)insights.push("Empieza registrando ingresos para que el análisis sea más preciso.");else if(savingsRate>=20)insights.push("Tu ahorro está en una zona saludable según la regla 50/30/20.");else insights.push("Tu ahorro está por debajo del 20%; el sistema recomienda revisar gastos variables y pagos recurrentes.");if(prevTotals.fixed+prevTotals.variable>0){const change=(expenses-(prevTotals.fixed+prevTotals.variable))/(prevTotals.fixed+prevTotals.variable)*100;insights.push(`Tus gastos totales cambiaron ${pct(change)} frente al mes anterior.`)}if(activeMonths.length>0)insights.push(`Tu ahorro mensual promedio del año es ${formatCurrency(avgSavings)}.`);alertsList.innerHTML=(alerts.length?alerts:["Sin alertas críticas para este mes."]).map(x=>`<li>${x}</li>`).join("");suggestionsList.innerHTML=(suggestions.length?suggestions:["Agrega más movimientos para generar sugerencias más precisas."]).map(x=>`<li>${x}</li>`).join("");insightsList.innerHTML=insights.map(x=>`<li>${x}</li>`).join("")}function refreshDashboard(){setupYearFilterIfNeeded();renderCategoryOptions();updateSummary();renderMonthlyDetailTable();renderTransactionTable();renderCategoriesTable();renderMonthlyChartIn("monthlyChart","monthly");renderMonthlyChartIn("chartsMonthlyChart","chartsMonthly");renderCategoryReportChart();renderYearlyChart();renderExpenseTrendChart();renderAnalytics()}function startEditingTransaction(id){const t=transactionsCache.find(x=>x.id===id);if(!t)return;editingTransactionId=id;dateInput.value=t.date;typeInput.value=t.type;typeInput.disabled=t.type==="fixed";renderCategoryOptions();categorySelect.value=t.categoryId;amountInput.value=t.amount;descriptionInput.value=t.description||"";submitBtn.textContent="Guardar cambios";cancelEditBtn.classList.remove("hidden");showSection("transactionsSection");form.scrollIntoView({behavior:"smooth",block:"start"})}function cancelEditingTransaction(){editingTransactionId=null;form.reset();dateInput.value=getCurrentDateValue();typeInput.disabled=false;submitBtn.textContent="Agregar";cancelEditBtn.classList.add("hidden");renderCategoryOptions()}async function addOrUpdateTransaction(e){e.preventDefault();if(!categorySelect.value){alert("Primero crea o selecciona una categoría.");return}const t={date:dateInput.value,type:typeInput.value,categoryId:categorySelect.value,amount:Number(amountInput.value),description:descriptionInput.value.trim()};if(editingTransactionId){await apiUpdateTransaction(editingTransactionId,t);alert("Movimiento actualizado en db.json.")}else{await apiCreateTransaction(t);if(t.type==="fixed")alert("Gasto fijo guardado como recurrente. Se repetirá todos los meses desde la fecha ingresada.")}await refreshData();const selectedDate=t.date;cancelEditingTransaction();monthFilter.value=getMonth(selectedDate);yearFilter.value=getYear(selectedDate);refreshDashboard()}async function deleteTransaction(id){await apiDeleteTransaction(id);await refreshData();refreshDashboard()}function startEditingCategory(id){const c=categoriesCache.find(x=>x.id===id);if(!c)return;editingCategoryId=id;categoryNameInput.value=c.name;categoryKindInput.value=c.kind;categorySubmitBtn.textContent="Guardar categoría";categoryCancelBtn.classList.remove("hidden")}function cancelEditingCategory(){editingCategoryId=null;categoryForm.reset();categorySubmitBtn.textContent="Agregar categoría";categoryCancelBtn.classList.add("hidden")}async function addOrUpdateCategory(e){e.preventDefault();const c={name:categoryNameInput.value.trim(),kind:categoryKindInput.value};if(!c.name)return;try{if(editingCategoryId){await apiUpdateCategory(editingCategoryId,c);alert("Categoría actualizada.")}else await apiCreateCategory(c);await refreshData();cancelEditingCategory();refreshDashboard()}catch(error){alert(error.message)}}async function deleteCategory(id){if(!confirm("¿Deseas eliminar esta categoría? Solo se puede eliminar si no tiene movimientos."))return;try{await apiDeleteCategory(id);await refreshData();refreshDashboard()}catch(error){alert(error.message)}}function exportJSON(){const data={categories:categoriesCache,transactions:transactionsCache};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="db_export.json";link.click();URL.revokeObjectURL(url)}function showSection(id){sections.forEach(s=>s.classList.remove("active-section"));navButtons.forEach(b=>b.classList.remove("active"));document.getElementById(id).classList.add("active-section");document.querySelector(`[data-section="${id}"]`).classList.add("active");pageTitle.textContent={transactionsSection:"Registrar movimientos",categoriesSection:"Categorías",chartsSection:"Gráficos",analyticsSection:"Data analytics"}[id]||"Mi Balance";setTimeout(()=>{renderMonthlyChartIn("monthlyChart","monthly");renderMonthlyChartIn("chartsMonthlyChart","chartsMonthly");renderCategoryReportChart();renderYearlyChart();renderExpenseTrendChart();renderAnalytics()},80)}navButtons.forEach(b=>b.addEventListener("click",()=>showSection(b.dataset.section)));form.addEventListener("submit",addOrUpdateTransaction);cancelEditBtn.addEventListener("click",cancelEditingTransaction);typeInput.addEventListener("change",renderCategoryOptions);categoryForm.addEventListener("submit",addOrUpdateCategory);categoryCancelBtn.addEventListener("click",cancelEditingCategory);monthlyDetailTable.addEventListener("click",e=>{if(e.target.matches("button[data-edit-transaction-id]"))startEditingTransaction(e.target.dataset.editTransactionId)});transactionTable.addEventListener("click",e=>{if(e.target.matches("button[data-delete-transaction-id]")){const isSeries=e.target.textContent==="Eliminar serie";if(isSeries&&!confirm("Este gasto fijo se eliminará de todos los meses. ¿Deseas continuar?"))return;deleteTransaction(e.target.dataset.deleteTransactionId)}});categoriesTable.addEventListener("click",e=>{if(e.target.matches("button[data-edit-category-id]"))startEditingCategory(e.target.dataset.editCategoryId);if(e.target.matches("button[data-delete-category-id]"))deleteCategory(e.target.dataset.deleteCategoryId)});monthFilter.addEventListener("change",refreshDashboard);yearFilter.addEventListener("change",refreshDashboard);exportBtn.addEventListener("click",exportJSON);async function initApp(){dateInput.value=getCurrentDateValue();try{await refreshData();setupFilters();renderCategoryOptions();refreshDashboard()}catch(error){alert("No se pudo iniciar la app. Asegúrate de abrirla usando el servidor local con: npm start");console.error(error)}}initApp();
+
+const pageTitle = document.getElementById("pageTitle");
+const navButtons = document.querySelectorAll(".nav-btn");
+const sections = document.querySelectorAll(".page-section");
+
+const form = document.getElementById("transactionForm");
+const submitBtn = document.getElementById("submitBtn");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+const dateInput = document.getElementById("date");
+const typeInput = document.getElementById("type");
+const categorySelect = document.getElementById("categorySelect");
+const amountInput = document.getElementById("amount");
+const descriptionInput = document.getElementById("description");
+
+const categoryForm = document.getElementById("categoryForm");
+const categoryNameInput = document.getElementById("categoryName");
+const categoryKindInput = document.getElementById("categoryKind");
+const categorySubmitBtn = document.getElementById("categorySubmitBtn");
+const categoryCancelBtn = document.getElementById("categoryCancelBtn");
+const categoriesTable = document.getElementById("categoriesTable");
+
+const monthFilter = document.getElementById("monthFilter");
+const yearFilter = document.getElementById("yearFilter");
+
+const totalIncomeEl = document.getElementById("totalIncome");
+const totalFixedEl = document.getElementById("totalFixed");
+const totalVariableEl = document.getElementById("totalVariable");
+const savingsBalanceEl = document.getElementById("savingsBalance");
+const transactionTable = document.getElementById("transactionTable");
+const monthlyDetailTable = document.getElementById("monthlyDetailTable");
+const exportBtn = document.getElementById("exportBtn");
+
+const analyticsCards = document.getElementById("analyticsCards");
+const analyticsCategoryTable = document.getElementById("analyticsCategoryTable");
+const insightsList = document.getElementById("insightsList");
+const ruleTable = document.getElementById("ruleTable");
+const comparisonTable = document.getElementById("comparisonTable");
+const averageTable = document.getElementById("averageTable");
+const projectionTable = document.getElementById("projectionTable");
+const alertsList = document.getElementById("alertsList");
+const suggestionsList = document.getElementById("suggestionsList");
+
+let monthlyChart = null;
+let chartsMonthlyChart = null;
+let yearlyChart = null;
+let categoryReportChart = null;
+let expenseTrendChart = null;
+
+let transactionsCache = [];
+let categoriesCache = [];
+let editingTransactionId = null;
+let editingCategoryId = null;
+
+const monthNames = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
+const isMobile = () => window.innerWidth <= 520;
+
+async function apiGetDB() {
+  const response = await fetch("/api/db");
+  if (!response.ok) throw new Error("No se pudo leer db.json");
+  return response.json();
+}
+
+async function apiCreateTransaction(transaction) {
+  const response = await fetch("/api/transactions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(transaction)
+  });
+
+  if (!response.ok) throw new Error("No se pudo guardar el movimiento.");
+  return response.json();
+}
+
+async function apiUpdateTransaction(id, transaction) {
+  const response = await fetch(`/api/transactions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(transaction)
+  });
+
+  if (!response.ok) throw new Error("No se pudo actualizar el movimiento.");
+  return response.json();
+}
+
+async function apiDeleteTransaction(id) {
+  const response = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("No se pudo eliminar el movimiento.");
+  return response.json();
+}
+
+async function apiCreateCategory(category) {
+  const response = await fetch("/api/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(category)
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "No se pudo crear la categoría.");
+  return data;
+}
+
+async function apiUpdateCategory(id, category) {
+  const response = await fetch(`/api/categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(category)
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "No se pudo actualizar la categoría.");
+  return data;
+}
+
+async function apiDeleteCategory(id) {
+  const response = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "No se pudo eliminar la categoría.");
+  return data;
+}
+
+async function refreshData() {
+  const db = await apiGetDB();
+  transactionsCache = db.transactions || [];
+  categoriesCache = db.categories || [];
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("es-CA", {
+    style: "currency",
+    currency: "CAD"
+  }).format(value || 0);
+}
+
+function pct(value) {
+  const safe = Number.isFinite(value) ? value : 0;
+  return `${safe.toFixed(1)}%`;
+}
+
+function getCurrentDateValue() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function getDateParts(dateString) {
+  const date = new Date(dateString + "T00:00:00");
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth(),
+    day: date.getDate()
+  };
+}
+
+function getMonth(dateString) {
+  return getDateParts(dateString).month;
+}
+
+function getYear(dateString) {
+  return getDateParts(dateString).year;
+}
+
+function getLastDayOfMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function buildMonthlyDate(originalDate, targetYear, targetMonth) {
+  const originalDay = getDateParts(originalDate).day;
+  const lastDay = getLastDayOfMonth(targetYear, targetMonth);
+  const validDay = Math.min(originalDay, lastDay);
+
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}-${String(validDay).padStart(2, "0")}`;
+}
+
+function isSameOrAfterMonth(targetYear, targetMonth, startDate) {
+  const start = getDateParts(startDate);
+  return targetYear > start.year || (targetYear === start.year && targetMonth >= start.month);
+}
+
+function getTypeLabel(type) {
+  const labels = {
+    income: "Ingreso",
+    fixed: "Gasto fijo",
+    variable: "Gasto variable",
+    savings: "Ahorro"
+  };
+
+  return labels[type] || type;
+}
+
+function getCategoryName(categoryId) {
+  const category = categoriesCache.find(item => item.id === categoryId);
+  return category ? category.name : "Sin categoría";
+}
+
+function setupFilters() {
+  const currentYear = new Date().getFullYear();
+
+  monthFilter.innerHTML = "";
+  yearFilter.innerHTML = "";
+
+  monthNames.forEach((month, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = month;
+    monthFilter.appendChild(option);
+  });
+
+  const years = new Set(transactionsCache.map(item => getYear(item.date)));
+  years.add(currentYear);
+
+  Array.from(years).sort((a, b) => b - a).forEach(year => {
+    const option = document.createElement("option");
+    option.value = year;
+    option.textContent = year;
+    yearFilter.appendChild(option);
+  });
+
+  monthFilter.value = new Date().getMonth();
+  yearFilter.value = currentYear;
+}
+
+function setupYearFilterIfNeeded() {
+  const selectedYear = yearFilter.value;
+  const years = new Set(transactionsCache.map(item => String(getYear(item.date))));
+  years.add(String(new Date().getFullYear()));
+
+  if (!years.has(selectedYear)) years.add(selectedYear);
+
+  const currentOptions = Array.from(yearFilter.options).map(option => option.value);
+  const newOptions = Array.from(years).sort((a, b) => Number(b) - Number(a));
+
+  if (JSON.stringify(currentOptions) !== JSON.stringify(newOptions)) {
+    yearFilter.innerHTML = "";
+
+    newOptions.forEach(year => {
+      const option = document.createElement("option");
+      option.value = year;
+      option.textContent = year;
+      yearFilter.appendChild(option);
+    });
+
+    yearFilter.value = selectedYear;
+  }
+}
+
+function renderCategoryOptions() {
+  const selectedType = typeInput.value;
+  const selectedValue = categorySelect.value;
+
+  const categories = categoriesCache
+    .filter(category => category.kind === selectedType)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  categorySelect.innerHTML = "";
+
+  if (categories.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Primero crea una categoría";
+    categorySelect.appendChild(option);
+    return;
+  }
+
+  categories.forEach(category => {
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    categorySelect.appendChild(option);
+  });
+
+  if (categories.some(category => category.id === selectedValue)) {
+    categorySelect.value = selectedValue;
+  }
+}
+
+function getTransactionsForMonth(year, month) {
+  const normalTransactions = transactionsCache.filter(item => {
+    if (item.type === "fixed") return false;
+    return getMonth(item.date) === month && getYear(item.date) === year;
+  });
+
+  const recurringFixedExpenses = transactionsCache
+    .filter(item => item.type === "fixed")
+    .filter(item => isSameOrAfterMonth(year, month, item.date))
+    .map(item => ({
+      ...item,
+      originalId: item.id,
+      id: `${item.id}-${year}-${month}`,
+      date: buildMonthlyDate(item.date, year, month),
+      isGeneratedFixed: true
+    }));
+
+  return [...normalTransactions, ...recurringFixedExpenses];
+}
+
+function getFilteredTransactions() {
+  return getTransactionsForMonth(Number(yearFilter.value), Number(monthFilter.value));
+}
+
+function calculateTotals(transactions) {
+  return transactions.reduce(
+    (totals, item) => {
+      if (item.type === "income") totals.income += item.amount;
+      if (item.type === "fixed") totals.fixed += item.amount;
+      if (item.type === "variable") totals.variable += item.amount;
+
+      totals.expenses = totals.fixed + totals.variable;
+      totals.savings = totals.income - totals.expenses;
+
+      return totals;
+    },
+    { income: 0, fixed: 0, variable: 0, expenses: 0, savings: 0 }
+  );
+}
+
+function getYearlyTotals(year = Number(yearFilter.value)) {
+  return monthNames.map((month, index) => {
+    const totals = calculateTotals(getTransactionsForMonth(year, index));
+
+    return {
+      month,
+      income: totals.income,
+      fixed: totals.fixed,
+      variable: totals.variable,
+      expenses: totals.expenses,
+      savings: totals.savings
+    };
+  });
+}
+
+function getPreviousMonthInfo() {
+  let year = Number(yearFilter.value);
+  let month = Number(monthFilter.value) - 1;
+
+  if (month < 0) {
+    month = 11;
+    year -= 1;
+  }
+
+  return {
+    year,
+    month,
+    transactions: getTransactionsForMonth(year, month)
+  };
+}
+
+function updateSummary() {
+  const totals = calculateTotals(getFilteredTransactions());
+
+  totalIncomeEl.textContent = formatCurrency(totals.income);
+  totalFixedEl.textContent = formatCurrency(totals.fixed);
+  totalVariableEl.textContent = formatCurrency(totals.variable);
+  savingsBalanceEl.textContent = formatCurrency(totals.savings);
+}
+
+function groupByCategory(transactions, includeIncome = false) {
+  const grouped = {};
+
+  transactions.forEach(item => {
+    if (!includeIncome && item.type === "income") return;
+
+    const name = getCategoryName(item.categoryId);
+    const key = item.categoryId || name;
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        category: name,
+        type: item.type,
+        amount: 0,
+        count: 0
+      };
+    }
+
+    grouped[key].amount += item.amount;
+    grouped[key].count += 1;
+  });
+
+  return Object.values(grouped).sort((a, b) => b.amount - a.amount);
+}
+
+function renderMonthlyDetailTable() {
+  const transactions = getFilteredTransactions();
+  const totals = calculateTotals(transactions);
+
+  const rows = transactions.map(item => ({
+    amount: item.amount,
+    category: getCategoryName(item.categoryId),
+    description: item.description || "-",
+    type: item.type,
+    originalId: item.originalId || item.id
+  }));
+
+  rows.push({
+    amount: totals.savings,
+    category: "Saldo restante",
+    description: "Ahorro del mes",
+    type: "savings",
+    originalId: null
+  });
+
+  monthlyDetailTable.innerHTML = "";
+
+  if (rows.length === 0) {
+    monthlyDetailTable.innerHTML = '<tr><td colspan="5">No hay información para mostrar.</td></tr>';
+    return;
+  }
+
+  rows
+    .sort((a, b) => {
+      const order = { income: 1, fixed: 2, variable: 3, savings: 4 };
+      return order[a.type] - order[b.type];
+    })
+    .forEach(item => {
+      const row = document.createElement("tr");
+
+      if (item.type === "income") row.classList.add("income-row");
+      if (item.type === "fixed" || item.type === "variable") row.classList.add("expense-row");
+      if (item.type === "savings") row.classList.add("savings-row");
+
+      const action = item.type === "fixed"
+        ? `<button class="edit" data-edit-transaction-id="${item.originalId}">Editar</button>`
+        : "-";
+
+      row.innerHTML = `
+        <td>${formatCurrency(item.amount)}</td>
+        <td>${item.category}</td>
+        <td>${item.description}</td>
+        <td>${getTypeLabel(item.type)}</td>
+        <td>${action}</td>
+      `;
+
+      monthlyDetailTable.appendChild(row);
+    });
+}
+
+function renderTransactionTable() {
+  const transactions = getFilteredTransactions();
+  transactionTable.innerHTML = "";
+
+  if (transactions.length === 0) {
+    transactionTable.innerHTML = '<tr><td colspan="6">No hay movimientos registrados para este mes.</td></tr>';
+    return;
+  }
+
+  transactions
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .forEach(item => {
+      const row = document.createElement("tr");
+      const deleteId = item.isGeneratedFixed ? item.originalId : item.id;
+      const deleteText = item.isGeneratedFixed ? "Eliminar serie" : "Eliminar";
+      const description = item.isGeneratedFixed
+        ? `${item.description || "-"} · Recurrente`
+        : item.description || "-";
+
+      row.innerHTML = `
+        <td>${item.date}</td>
+        <td>${getTypeLabel(item.type)}</td>
+        <td>${getCategoryName(item.categoryId)}</td>
+        <td>${description}</td>
+        <td>${formatCurrency(item.amount)}</td>
+        <td><button class="danger" data-delete-transaction-id="${deleteId}">${deleteText}</button></td>
+      `;
+
+      transactionTable.appendChild(row);
+    });
+}
+
+function renderCategoriesTable() {
+  categoriesTable.innerHTML = "";
+
+  if (categoriesCache.length === 0) {
+    categoriesTable.innerHTML = '<tr><td colspan="4">No hay categorías registradas.</td></tr>';
+    return;
+  }
+
+  categoriesCache
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
+    .forEach(category => {
+      const usage = transactionsCache.filter(transaction => transaction.categoryId === category.id).length;
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${category.name}</td>
+        <td>${getTypeLabel(category.kind)}</td>
+        <td>${usage} movimiento(s)</td>
+        <td>
+          <button class="edit" data-edit-category-id="${category.id}">Editar</button>
+          <button class="danger" data-delete-category-id="${category.id}">Eliminar</button>
+        </td>
+      `;
+
+      categoriesTable.appendChild(row);
+    });
+}
+
+function chartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: isMobile() ? "bottom" : "top",
+        labels: {
+          boxWidth: isMobile() ? 12 : 40
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: context => `${context.dataset.label || context.label}: ${formatCurrency(context.raw)}`
+        }
+      }
+    }
+  };
+}
+
+function renderMonthlyChartIn(canvasId, name) {
+  const totals = calculateTotals(getFilteredTransactions());
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  if (name === "monthly" && monthlyChart) monthlyChart.destroy();
+  if (name === "chartsMonthly" && chartsMonthlyChart) chartsMonthlyChart.destroy();
+
+  const chart = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels: ["Gastos fijos", "Gastos variables", "Ahorro"],
+      datasets: [{
+        label: "Monto",
+        data: [
+          Math.max(totals.fixed, 0),
+          Math.max(totals.variable, 0),
+          Math.max(totals.savings, 0)
+        ]
+      }]
+    },
+    options: chartOptions()
+  });
+
+  if (name === "monthly") monthlyChart = chart;
+  if (name === "chartsMonthly") chartsMonthlyChart = chart;
+}
+
+function renderCategoryReportChart() {
+  const grouped = groupByCategory(getFilteredTransactions(), false);
+  const canvas = document.getElementById("categoryReportChart");
+  if (!canvas) return;
+
+  if (categoryReportChart) categoryReportChart.destroy();
+
+  categoryReportChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: grouped.map(item => item.category),
+      datasets: [{
+        label: "Gasto por categoría",
+        data: grouped.map(item => item.amount)
+      }]
+    },
+    options: {
+      ...chartOptions(),
+      indexAxis: grouped.length > 4 || isMobile() ? "y" : "x",
+      scales: {
+        x: { beginAtZero: true },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderYearlyChart() {
+  const data = getYearlyTotals();
+  const canvas = document.getElementById("yearlyChart");
+  if (!canvas) return;
+
+  if (yearlyChart) yearlyChart.destroy();
+
+  yearlyChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: data.map(item => isMobile() ? item.month.slice(0, 3) : item.month),
+      datasets: [
+        { label: "Ingresos", data: data.map(item => item.income) },
+        { label: "Fijos", data: data.map(item => item.fixed) },
+        { label: "Variables", data: data.map(item => item.variable) },
+        { label: "Ahorro", data: data.map(item => item.savings) }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderExpenseTrendChart() {
+  const data = getYearlyTotals();
+  const canvas = document.getElementById("expenseTrendChart");
+  if (!canvas) return;
+
+  if (expenseTrendChart) expenseTrendChart.destroy();
+
+  expenseTrendChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: data.map(item => isMobile() ? item.month.slice(0, 3) : item.month),
+      datasets: [
+        { label: "Gastos", data: data.map(item => item.expenses), tension: 0.25 },
+        { label: "Ahorro", data: data.map(item => item.savings), tension: 0.25 }
+      ]
+    },
+    options: {
+      ...chartOptions(),
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function rowClassByStatus(status) {
+  if (status === "OK") return "good";
+  if (status === "Revisar") return "warning";
+  return "danger-text";
+}
+
+function renderAnalytics() {
+  const transactions = getFilteredTransactions();
+  const totals = calculateTotals(transactions);
+  const previous = calculateTotals(getPreviousMonthInfo().transactions);
+
+  const savingsRate = totals.income > 0 ? (totals.savings / totals.income) * 100 : 0;
+  const expenseRate = totals.income > 0 ? (totals.expenses / totals.income) * 100 : 0;
+  const fixedRate = totals.expenses > 0 ? (totals.fixed / totals.expenses) * 100 : 0;
+  const variableRate = totals.expenses > 0 ? (totals.variable / totals.expenses) * 100 : 0;
+
+  const grouped = groupByCategory(transactions, false);
+  const top = grouped[0];
+
+  const yearly = getYearlyTotals();
+  const activeMonths = yearly.filter(item => item.income || item.expenses || item.savings);
+  const monthsCount = Math.max(activeMonths.length, 1);
+
+  const yearIncome = yearly.reduce((sum, item) => sum + item.income, 0);
+  const yearFixed = yearly.reduce((sum, item) => sum + item.fixed, 0);
+  const yearVariable = yearly.reduce((sum, item) => sum + item.variable, 0);
+  const yearExpenses = yearly.reduce((sum, item) => sum + item.expenses, 0);
+  const yearSavings = yearly.reduce((sum, item) => sum + item.savings, 0);
+
+  const avgIncome = yearIncome / monthsCount;
+  const avgExpenses = yearExpenses / monthsCount;
+  const avgSavings = yearSavings / monthsCount;
+
+  analyticsCards.innerHTML = `
+    <div class="analytics-card"><h4>Tasa de ahorro</h4><p>${pct(savingsRate)}</p><small>Ahorro / ingresos</small></div>
+    <div class="analytics-card"><h4>Tasa de gasto</h4><p>${pct(expenseRate)}</p><small>Gastos / ingresos</small></div>
+    <div class="analytics-card"><h4>Fijos sobre gastos</h4><p>${pct(fixedRate)}</p><small>Pagos recurrentes</small></div>
+    <div class="analytics-card"><h4>Variables sobre gastos</h4><p>${pct(variableRate)}</p><small>Gastos ajustables</small></div>
+    <div class="analytics-card"><h4>Gasto diario estimado</h4><p>${formatCurrency(totals.expenses / 30)}</p><small>Promedio simple mensual</small></div>
+    <div class="analytics-card"><h4>Ahorro proyectado</h4><p>${formatCurrency(avgSavings * 12)}</p><small>Promedio anualizado</small></div>
+    <div class="analytics-card"><h4>Categoría más alta</h4><p>${top ? top.category : "-"}</p><small>${top ? formatCurrency(top.amount) : "Sin datos"}</small></div>
+    <div class="analytics-card"><h4>Meses con datos</h4><p>${activeMonths.length}</p><small>Año seleccionado</small></div>
+  `;
+
+  analyticsCategoryTable.innerHTML = "";
+
+  if (grouped.length === 0) {
+    analyticsCategoryTable.innerHTML = '<tr><td colspan="4">No hay gastos para analizar.</td></tr>';
+  } else {
+    grouped.forEach(item => {
+      const percent = totals.income > 0 ? (item.amount / totals.income) * 100 : 0;
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${item.category}</td>
+        <td>${getTypeLabel(item.type)}</td>
+        <td>${formatCurrency(item.amount)}</td>
+        <td>${pct(percent)}</td>
+      `;
+
+      analyticsCategoryTable.appendChild(row);
+    });
+  }
+
+  ruleTable.innerHTML = "";
+  [
+    { name: "Necesidades / fijos", amount: totals.fixed, value: totals.income > 0 ? totals.fixed / totals.income * 100 : 0, goal: "≤ 50%", limit: 50, mode: "max" },
+    { name: "Variables", amount: totals.variable, value: totals.income > 0 ? totals.variable / totals.income * 100 : 0, goal: "≤ 30%", limit: 30, mode: "max" },
+    { name: "Ahorro", amount: totals.savings, value: savingsRate, goal: "≥ 20%", limit: 20, mode: "min" }
+  ].forEach(item => {
+    const status = item.mode === "max"
+      ? (item.value <= item.limit ? "OK" : "Revisar")
+      : (item.value >= item.limit ? "OK" : "Bajo");
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${item.name}</td>
+      <td>${formatCurrency(item.amount)}</td>
+      <td>${pct(item.value)}</td>
+      <td>${item.goal}</td>
+      <td class="${rowClassByStatus(status)}">${status}</td>
+    `;
+
+    ruleTable.appendChild(row);
+  });
+
+  comparisonTable.innerHTML = "";
+  [
+    ["Ingresos", totals.income, previous.income],
+    ["Gastos fijos", totals.fixed, previous.fixed],
+    ["Gastos variables", totals.variable, previous.variable],
+    ["Gastos totales", totals.expenses, previous.expenses],
+    ["Ahorro", totals.savings, previous.savings]
+  ].forEach(([name, current, old]) => {
+    const diff = current - old;
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${name}</td>
+      <td>${formatCurrency(current)}</td>
+      <td>${formatCurrency(old)}</td>
+      <td class="${diff > 0 ? "warning" : diff < 0 ? "good" : ""}">${formatCurrency(diff)}</td>
+    `;
+
+    comparisonTable.appendChild(row);
+  });
+
+  averageTable.innerHTML = "";
+  [
+    ["Ingresos", avgIncome, yearIncome],
+    ["Gastos fijos", yearFixed / monthsCount, yearFixed],
+    ["Gastos variables", yearVariable / monthsCount, yearVariable],
+    ["Gastos totales", avgExpenses, yearExpenses],
+    ["Ahorro", avgSavings, yearSavings]
+  ].forEach(([name, avg, total]) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${name}</td><td>${formatCurrency(avg)}</td><td>${formatCurrency(total)}</td>`;
+    averageTable.appendChild(row);
+  });
+
+  projectionTable.innerHTML = "";
+  [
+    ["Ingresos", avgIncome * 12, "Estimado según tus meses con datos"],
+    ["Gastos", avgExpenses * 12, "Proyección de salida anual"],
+    ["Ahorro", avgSavings * 12, avgSavings >= 0 ? "Vas en positivo si mantienes el ritmo" : "Riesgo de cerrar el año en negativo"]
+  ].forEach(([name, value, comment]) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${name}</td><td>${formatCurrency(value)}</td><td>${comment}</td>`;
+    projectionTable.appendChild(row);
+  });
+
+  const alerts = [];
+  const suggestions = [];
+  const insights = [];
+
+  if (totals.income === 0) alerts.push("No hay ingresos registrados este mes.");
+  if (totals.savings < 0) alerts.push("Tus gastos superan tus ingresos.");
+  if (expenseRate > 80) alerts.push("Tus gastos consumen más del 80% de tus ingresos.");
+  if (fixedRate > 60) alerts.push("Tus gastos fijos pesan más del 60% de tus gastos totales.");
+  if (top && totals.income > 0 && top.amount / totals.income * 100 > 35) {
+    alerts.push(`La categoría "${top.category}" supera el 35% de tus ingresos.`);
+  }
+
+  if (totals.variable > totals.fixed) suggestions.push("Crea límites semanales para tus gastos variables.");
+  if (savingsRate < 20 && totals.income > 0) suggestions.push("Intenta separar el ahorro apenas recibes ingresos.");
+  if (top) suggestions.push(`Revisa "${top.category}", porque es tu mayor salida del mes.`);
+  if (previous.expenses > 0 && totals.expenses > previous.expenses) suggestions.push("Tus gastos subieron vs el mes anterior.");
+
+  if (totals.income === 0) {
+    insights.push("Empieza registrando ingresos para que el análisis sea más preciso.");
+  } else if (savingsRate >= 20) {
+    insights.push("Tu ahorro está en una zona saludable según la regla 50/30/20.");
+  } else {
+    insights.push("Tu ahorro está por debajo del 20%; revisa gastos variables y pagos recurrentes.");
+  }
+
+  if (activeMonths.length > 0) {
+    insights.push(`Tu ahorro mensual promedio del año es ${formatCurrency(avgSavings)}.`);
+  }
+
+  alertsList.innerHTML = (alerts.length ? alerts : ["Sin alertas críticas para este mes."]).map(item => `<li>${item}</li>`).join("");
+  suggestionsList.innerHTML = (suggestions.length ? suggestions : ["Agrega más movimientos para generar sugerencias más precisas."]).map(item => `<li>${item}</li>`).join("");
+  insightsList.innerHTML = insights.map(item => `<li>${item}</li>`).join("");
+}
+
+function refreshDashboard() {
+  setupYearFilterIfNeeded();
+  renderCategoryOptions();
+  updateSummary();
+  renderMonthlyDetailTable();
+  renderTransactionTable();
+  renderCategoriesTable();
+  renderMonthlyChartIn("monthlyChart", "monthly");
+  renderMonthlyChartIn("chartsMonthlyChart", "chartsMonthly");
+  renderCategoryReportChart();
+  renderYearlyChart();
+  renderExpenseTrendChart();
+  renderAnalytics();
+}
+
+function startEditingTransaction(id) {
+  const transaction = transactionsCache.find(item => item.id === id);
+  if (!transaction) return;
+
+  editingTransactionId = id;
+
+  dateInput.value = transaction.date;
+  typeInput.value = transaction.type;
+  typeInput.disabled = transaction.type === "fixed";
+  renderCategoryOptions();
+  categorySelect.value = transaction.categoryId;
+  amountInput.value = transaction.amount;
+  descriptionInput.value = transaction.description || "";
+
+  submitBtn.textContent = "Guardar cambios";
+  cancelEditBtn.classList.remove("hidden");
+
+  showSection("transactionsSection");
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelEditingTransaction() {
+  editingTransactionId = null;
+  form.reset();
+  dateInput.value = getCurrentDateValue();
+  typeInput.disabled = false;
+  submitBtn.textContent = "Agregar";
+  cancelEditBtn.classList.add("hidden");
+  renderCategoryOptions();
+}
+
+async function addOrUpdateTransaction(event) {
+  event.preventDefault();
+
+  if (!categorySelect.value) {
+    alert("Primero crea o selecciona una categoría.");
+    return;
+  }
+
+  const transaction = {
+    date: dateInput.value,
+    type: typeInput.value,
+    categoryId: categorySelect.value,
+    amount: Number(amountInput.value),
+    description: descriptionInput.value.trim()
+  };
+
+  if (editingTransactionId) {
+    await apiUpdateTransaction(editingTransactionId, transaction);
+    alert("Movimiento actualizado en db.json.");
+  } else {
+    await apiCreateTransaction(transaction);
+
+    if (transaction.type === "fixed") {
+      alert("Gasto fijo guardado como recurrente.");
+    }
+  }
+
+  await refreshData();
+
+  const selectedDate = transaction.date;
+  cancelEditingTransaction();
+
+  monthFilter.value = getMonth(selectedDate);
+  yearFilter.value = getYear(selectedDate);
+
+  refreshDashboard();
+}
+
+async function deleteTransaction(id) {
+  await apiDeleteTransaction(id);
+  await refreshData();
+  refreshDashboard();
+}
+
+function startEditingCategory(id) {
+  const category = categoriesCache.find(item => item.id === id);
+  if (!category) return;
+
+  editingCategoryId = id;
+  categoryNameInput.value = category.name;
+  categoryKindInput.value = category.kind;
+  categorySubmitBtn.textContent = "Guardar categoría";
+  categoryCancelBtn.classList.remove("hidden");
+}
+
+function cancelEditingCategory() {
+  editingCategoryId = null;
+  categoryForm.reset();
+  categorySubmitBtn.textContent = "Agregar categoría";
+  categoryCancelBtn.classList.add("hidden");
+}
+
+async function addOrUpdateCategory(event) {
+  event.preventDefault();
+
+  const category = {
+    name: categoryNameInput.value.trim(),
+    kind: categoryKindInput.value
+  };
+
+  if (!category.name) return;
+
+  try {
+    if (editingCategoryId) {
+      await apiUpdateCategory(editingCategoryId, category);
+      alert("Categoría actualizada.");
+    } else {
+      await apiCreateCategory(category);
+    }
+
+    await refreshData();
+    cancelEditingCategory();
+    refreshDashboard();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function deleteCategory(id) {
+  if (!confirm("¿Deseas eliminar esta categoría? Solo se puede eliminar si no tiene movimientos.")) return;
+
+  try {
+    await apiDeleteCategory(id);
+    await refreshData();
+    refreshDashboard();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function exportJSON() {
+  const data = {
+    categories: categoriesCache,
+    transactions: transactionsCache
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "db_export.json";
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function showSection(sectionId) {
+  sections.forEach(section => section.classList.remove("active-section"));
+  navButtons.forEach(button => button.classList.remove("active"));
+
+  document.getElementById(sectionId).classList.add("active-section");
+  document.querySelector(`[data-section="${sectionId}"]`).classList.add("active");
+
+  const titles = {
+    transactionsSection: "Registrar movimientos",
+    categoriesSection: "Categorías",
+    chartsSection: "Gráficos",
+    analyticsSection: "Data analytics"
+  };
+
+  pageTitle.textContent = titles[sectionId] || "Mi Balance";
+
+  setTimeout(() => {
+    renderMonthlyChartIn("monthlyChart", "monthly");
+    renderMonthlyChartIn("chartsMonthlyChart", "chartsMonthly");
+    renderCategoryReportChart();
+    renderYearlyChart();
+    renderExpenseTrendChart();
+    renderAnalytics();
+  }, 120);
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+navButtons.forEach(button => {
+  button.addEventListener("click", () => showSection(button.dataset.section));
+});
+
+form.addEventListener("submit", addOrUpdateTransaction);
+cancelEditBtn.addEventListener("click", cancelEditingTransaction);
+typeInput.addEventListener("change", renderCategoryOptions);
+
+categoryForm.addEventListener("submit", addOrUpdateCategory);
+categoryCancelBtn.addEventListener("click", cancelEditingCategory);
+
+monthlyDetailTable.addEventListener("click", event => {
+  if (event.target.matches("button[data-edit-transaction-id]")) {
+    startEditingTransaction(event.target.dataset.editTransactionId);
+  }
+});
+
+transactionTable.addEventListener("click", event => {
+  if (event.target.matches("button[data-delete-transaction-id]")) {
+    const isSeries = event.target.textContent === "Eliminar serie";
+
+    if (isSeries && !confirm("Este gasto fijo se eliminará de todos los meses. ¿Deseas continuar?")) return;
+
+    deleteTransaction(event.target.dataset.deleteTransactionId);
+  }
+});
+
+categoriesTable.addEventListener("click", event => {
+  if (event.target.matches("button[data-edit-category-id]")) {
+    startEditingCategory(event.target.dataset.editCategoryId);
+  }
+
+  if (event.target.matches("button[data-delete-category-id]")) {
+    deleteCategory(event.target.dataset.deleteCategoryId);
+  }
+});
+
+monthFilter.addEventListener("change", refreshDashboard);
+yearFilter.addEventListener("change", refreshDashboard);
+exportBtn.addEventListener("click", exportJSON);
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => refreshDashboard(), 250);
+});
+
+async function initApp() {
+  dateInput.value = getCurrentDateValue();
+
+  try {
+    await refreshData();
+    setupFilters();
+    renderCategoryOptions();
+    refreshDashboard();
+  } catch (error) {
+    alert("No se pudo iniciar la app. Ejecuta npm start y abre http://localhost:3000");
+    console.error(error);
+  }
+}
+
+initApp();

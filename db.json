@@ -26,12 +26,7 @@
       "kind": "fixed"
     },
     {
-      "id": "cat_insurance",
-      "name": "Seguro",
-      "kind": "fixed"
-    },
-    {
-      "id": "cat_groceries",
+      "id": "cat_food",
       "name": "Comida",
       "kind": "variable"
     },
@@ -43,11 +38,6 @@
     {
       "id": "cat_health",
       "name": "Salud",
-      "kind": "variable"
-    },
-    {
-      "id": "cat_entertainment",
-      "name": "Entretenimiento",
       "kind": "variable"
     }
   ],

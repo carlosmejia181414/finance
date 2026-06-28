@@ -1,3 +1,4 @@
+
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -14,30 +15,32 @@ const DEFAULT_DB = {
     { id: "cat_rent", name: "Renta", kind: "fixed" },
     { id: "cat_internet", name: "Internet", kind: "fixed" },
     { id: "cat_phone", name: "Celular", kind: "fixed" },
-    { id: "cat_insurance", name: "Seguro", kind: "fixed" },
-    { id: "cat_groceries", name: "Comida", kind: "variable" },
+    { id: "cat_food", name: "Comida", kind: "variable" },
     { id: "cat_transport", name: "Transporte", kind: "variable" },
-    { id: "cat_health", name: "Salud", kind: "variable" },
-    { id: "cat_entertainment", name: "Entretenimiento", kind: "variable" }
+    { id: "cat_health", name: "Salud", kind: "variable" }
   ],
   transactions: []
 };
 
-function readDatabaseRaw() {
-  try {
-    return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-  } catch {
-    return structuredClone(DEFAULT_DB);
-  }
+function cloneDefaultDB() {
+  return JSON.parse(JSON.stringify(DEFAULT_DB));
 }
 
 function writeDatabase(data) {
   fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf8");
 }
 
+function readDatabaseRaw() {
+  try {
+    return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
+  } catch (error) {
+    return cloneDefaultDB();
+  }
+}
+
 function ensureDatabase() {
   if (!fs.existsSync(DB_PATH)) {
-    writeDatabase(DEFAULT_DB);
+    writeDatabase(cloneDefaultDB());
     return;
   }
 
@@ -45,7 +48,7 @@ function ensureDatabase() {
   let changed = false;
 
   if (!Array.isArray(db.categories)) {
-    db.categories = DEFAULT_DB.categories;
+    db.categories = cloneDefaultDB().categories;
     changed = true;
   }
 
@@ -59,7 +62,10 @@ function ensureDatabase() {
 
     const kind = transaction.type || "variable";
     const categoryName = transaction.category || "Sin categoría";
-    let category = db.categories.find(cat => cat.name.toLowerCase() === categoryName.toLowerCase() && cat.kind === kind);
+    let category = db.categories.find(cat =>
+      cat.name.toLowerCase() === categoryName.toLowerCase() &&
+      cat.kind === kind
+    );
 
     if (!category) {
       category = { id: crypto.randomUUID(), name: categoryName, kind };
@@ -86,11 +92,19 @@ function sendJson(response, statusCode, data) {
 function getRequestBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
-    request.on("data", chunk => body += chunk.toString());
-    request.on("end", () => {
-      try { resolve(body ? JSON.parse(body) : {}); }
-      catch (error) { reject(error); }
+
+    request.on("data", chunk => {
+      body += chunk.toString();
     });
+
+    request.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+
     request.on("error", reject);
   });
 }
@@ -121,7 +135,10 @@ function serveStaticFile(request, response) {
       ".json": "application/json"
     };
 
-    response.writeHead(200, { "Content-Type": contentTypes[extension] || "application/octet-stream" });
+    response.writeHead(200, {
+      "Content-Type": contentTypes[extension] || "application/octet-stream"
+    });
+
     response.end(content);
   });
 }
@@ -159,6 +176,7 @@ const server = http.createServer(async (request, response) => {
 
       db.transactions = db.transactions.map(transaction => {
         if (transaction.id !== id) return transaction;
+
         return {
           ...transaction,
           date: updates.date,
@@ -177,7 +195,9 @@ const server = http.createServer(async (request, response) => {
     if (request.url.startsWith("/api/transactions/") && request.method === "DELETE") {
       const id = request.url.split("/").pop();
       const db = readDatabase();
+
       db.transactions = db.transactions.filter(transaction => transaction.id !== id);
+
       writeDatabase(db);
       sendJson(response, 200, { success: true });
       return;
@@ -216,7 +236,12 @@ const server = http.createServer(async (request, response) => {
 
       db.categories = db.categories.map(category => {
         if (category.id !== id) return category;
-        return { ...category, name: updates.name, kind: updates.kind };
+
+        return {
+          ...category,
+          name: updates.name,
+          kind: updates.kind
+        };
       });
 
       db.transactions = db.transactions.map(transaction => {
@@ -234,9 +259,10 @@ const server = http.createServer(async (request, response) => {
       const db = readDatabase();
 
       const isUsed = db.transactions.some(transaction => transaction.categoryId === id);
+
       if (isUsed) {
         sendJson(response, 400, {
-          error: "No puedes eliminar esta categoría porque tiene movimientos registrados. Primero cambia o elimina esos movimientos."
+          error: "No puedes eliminar esta categoría porque tiene movimientos registrados."
         });
         return;
       }
@@ -249,13 +275,16 @@ const server = http.createServer(async (request, response) => {
 
     serveStaticFile(request, response);
   } catch (error) {
-    sendJson(response, 500, { error: "Server error", detail: error.message });
+    sendJson(response, 500, {
+      error: "Server error",
+      detail: error.message
+    });
   }
 });
 
 ensureDatabase();
 
 server.listen(PORT, () => {
-  console.log(`Servidor iniciado en http://localhost:${PORT}`);
-  console.log(`Los datos se guardan en: ${DB_PATH}`);
+  console.log("Servidor iniciado en http://localhost:" + PORT);
+  console.log("Los datos se guardan en: " + DB_PATH);
 });

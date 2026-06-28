@@ -1,69 +1,35 @@
-# Mi Balance - JSON DB v3 Analytics
 
-Esta versión amplía el módulo **Data analytics** para administrar y analizar mejor tus gastos.
+# Mi Balance - Versión corregida responsive
 
-La información se guarda en:
+Esta versión corrige problemas comunes y está optimizada para celular.
 
-```txt
-db.json
-```
-
-No usa cookies ni `localStorage`.
-
-## Funciones incluidas
-
-- Menú lateral:
-  - Registrar movimientos
-  - Categorías
-  - Gráficos
-  - Data analytics
-- Categorías en combo box.
-- Agregar, editar y eliminar categorías.
-- Ingresos, gastos fijos recurrentes y gastos variables.
-- Gastos fijos recurrentes automáticos cada mes.
-- Tabla al costado del gráfico con monto, categoría, descripción, tipo y acción.
-- Gráfico mensual.
-- Gráfico por categoría.
-- Gráfico anual.
-- Gráfico de tendencia de gastos y ahorro.
-
-## Data analytics avanzado
-
-Incluye:
-
-- Tasa de ahorro.
-- Tasa de gasto.
-- Gastos fijos sobre gastos totales.
-- Gastos variables sobre gastos totales.
-- Gasto diario estimado.
-- Ahorro proyectado anual.
-- Categoría más alta.
-- Meses con datos.
-- Top categorías del mes.
-- Reporte 50/30/20.
-- Comparativo vs mes anterior.
-- Promedios anuales.
-- Proyección anual.
-- Alertas de gasto.
-- Sugerencias automáticas.
-- Insights generales.
-
-## Cómo probarla
-
-Necesitas tener Node.js instalado.
+## Cómo probar
 
 1. Descomprime el ZIP.
 2. Abre la carpeta en Visual Studio Code.
-3. En la terminal ejecuta:
+3. Abre la terminal dentro de la carpeta.
+4. Ejecuta:
 
 ```bash
 npm start
 ```
 
-4. Abre en el navegador:
+5. Abre en el navegador:
 
 ```txt
 http://localhost:3000
 ```
 
-No abras `index.html` directamente, porque esta versión necesita el servidor para escribir en `db.json`.
+## Importante
+
+No abras `index.html` directamente. Esta app necesita el servidor de Node.js para guardar datos en `db.json`.
+
+## Qué incluye
+
+- Diseño responsive para celular.
+- Categorías en combo box.
+- Agregar, editar y eliminar categorías.
+- Ingresos, gastos fijos recurrentes y gastos variables.
+- Gráficos mensuales, por categoría, anuales y tendencia.
+- Data analytics con alertas, sugerencias, comparativos y proyección anual.
+- Datos guardados en `db.json`.
