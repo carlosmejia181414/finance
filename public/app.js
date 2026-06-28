@@ -296,19 +296,44 @@ function renderCategoryOptions() {
 function getTransactionsForMonth(year, month) {
   const normalTransactions = transactionsCache.filter(item => {
     if (item.type === "fixed") return false;
+    if (item.type === "fixed_override") return false;
+    if (item.type === "fixed_deleted") return false;
     return getMonth(item.date) === month && getYear(item.date) === year;
   });
 
   const recurringFixedExpenses = transactionsCache
     .filter(item => item.type === "fixed")
     .filter(item => isSameOrAfterMonth(year, month, item.date))
-    .map(item => ({
-      ...item,
-      originalId: item.id,
-      id: `${item.id}-${year}-${month}`,
-      date: buildMonthlyDate(item.date, year, month),
-      isGeneratedFixed: true
-    }));
+    .map(item => {
+      const deletedMarker = getDeletedRecurringMarker(item.id, year, month);
+      if (deletedMarker) return null;
+
+      const override = getRecurringOverride(item.id, year, month);
+
+      if (override) {
+        return {
+          ...override,
+          originalId: item.id,
+          id: override.id,
+          date: override.date,
+          type: "fixed_override",
+          isGeneratedFixed: true,
+          isMonthlyOverride: true,
+          description: override.description || "Gasto fijo recurrente modificado para este mes"
+        };
+      }
+
+      return {
+        ...item,
+        originalId: item.id,
+        id: `${item.id}-${year}-${month}`,
+        date: buildMonthlyDate(item.date, year, month),
+        isGeneratedFixed: true,
+        isMonthlyOverride: false,
+        description: item.description || "Gasto fijo recurrente"
+      };
+    })
+    .filter(Boolean);
 
   return [...normalTransactions, ...recurringFixedExpenses];
 }
@@ -647,6 +672,7 @@ function rowClassByStatus(status) {
 }
 
 function renderAnalytics() {
+  if (!analyticsCards || !analyticsCategoryTable || !ruleTable || !comparisonTable || !averageTable || !projectionTable || !alertsList || !suggestionsList || !insightsList) return;
   const selectedYear = Number(yearFilter.value);
   const selectedMonth = Number(monthFilter.value);
 
@@ -788,14 +814,17 @@ function renderAnalytics() {
   });
 
   // Pareto table
+  if (!paretoTable || !categoryVarianceTable || !recurringTable || !variableAnalysisTable || !categoryMatrixHead || !categoryMatrixBody || !financialScoreBox || !scoreBreakdownTable || !dataQualityTable || !optimizationTable) return;
   paretoTable.innerHTML = "";
   let cumulative = 0;
+  let cumulativePareto = 0;
   if (grouped.length === 0) {
     paretoTable.innerHTML = '<tr><td colspan="6">No hay gastos para calcular Pareto.</td></tr>';
   } else {
     grouped.forEach((item, index) => {
       const share = totals.expenses > 0 ? item.amount / totals.expenses * 100 : 0;
       cumulative += share;
+      cumulativePareto = cumulative;
       const priority = index < 3 || cumulative <= 80 ? "Alta" : cumulative <= 95 ? "Media" : "Baja";
       const priorityClass = priority === "Alta" ? "priority-high" : priority === "Media" ? "priority-medium" : "priority-low";
       const row = document.createElement("tr");
@@ -997,7 +1026,7 @@ function renderAnalytics() {
   if (expenseRate > 80) alerts.push("Tus gastos consumen más del 80% de tus ingresos.");
   if (fixedRate > 60) alerts.push("Tus gastos fijos pesan más del 60% de tus gastos totales.");
   if (top && totals.income > 0 && top.amount / totals.income * 100 > 35) alerts.push(`La categoría "${top.category}" supera el 35% de tus ingresos.`);
-  if (grouped.length > 0 && cumulative > 80 && grouped.length <= 3) alerts.push("Tus gastos están muy concentrados en pocas categorías.");
+  if (grouped.length > 0 && cumulativePareto > 80 && grouped.length <= 3) alerts.push("Tus gastos están muy concentrados en pocas categorías.");
 
   if (totals.variable > totals.fixed) suggestions.push("Crea límites semanales para tus gastos variables; son el área con más oportunidad de ajuste.");
   if (savingsRate < 20 && totals.income > 0) suggestions.push("Automatiza el ahorro al inicio del mes para acercarte al 20%.");
@@ -1435,6 +1464,47 @@ async function addOrUpdateTransaction(event) {
   refreshDashboard();
 }
 
+
+async function deleteRecurringOnlyThisMonth(parentRecurringId) {
+  const selectedYear = Number(yearFilter.value);
+  const selectedMonth = Number(monthFilter.value);
+  const original = transactionsCache.find(item => item.id === parentRecurringId);
+
+  if (!original) {
+    alert("No se encontró la serie recurrente original.");
+    return;
+  }
+
+  const existingOverride = getRecurringOverride(parentRecurringId, selectedYear, selectedMonth);
+  const existingDeleted = getDeletedRecurringMarker(parentRecurringId, selectedYear, selectedMonth);
+
+  if (existingDeleted) {
+    alert("Este gasto recurrente ya está eliminado para este mes.");
+    return;
+  }
+
+  if (existingOverride) {
+    await apiDeleteTransaction(existingOverride.id);
+  }
+
+  const deletionMarker = {
+    date: buildMonthlyDate(original.date, selectedYear, selectedMonth),
+    type: "fixed_deleted",
+    parentRecurringId,
+    overrideYear: selectedYear,
+    overrideMonth: selectedMonth,
+    categoryId: original.categoryId,
+    amount: 0,
+    description: "Gasto recurrente eliminado solo para este mes"
+  };
+
+  await apiCreateTransaction(deletionMarker);
+  await refreshData();
+  refreshDashboard();
+
+  alert("Gasto recurrente eliminado solo para este mes. Los demás meses no se modificaron.");
+}
+
 async function deleteTransaction(id) {
   await apiDeleteTransaction(id);
   await refreshData();
@@ -1467,7 +1537,10 @@ async function addOrUpdateCategory(event) {
     kind: categoryKindInput.value
   };
 
-  if (!category.name) return;
+  if (!category.name) {
+    alert("Escribe un nombre para la categoría.");
+    return;
+  }
 
   try {
     if (editingCategoryId) {
@@ -1560,11 +1633,17 @@ monthlyDetailTable.addEventListener("click", event => {
 
 transactionTable.addEventListener("click", event => {
   if (event.target.matches("button[data-delete-transaction-id]")) {
-    const isSeries = event.target.textContent === "Eliminar serie";
+    const text = event.target.textContent;
+    const id = event.target.dataset.deleteTransactionId;
 
-    if (isSeries && !confirm("Este gasto fijo se eliminará de todos los meses. ¿Deseas continuar?")) return;
+    if (text === "Eliminar solo este mes") {
+      if (!confirm("Este gasto recurrente se eliminará solo del mes seleccionado. Los demás meses no se modificarán. ¿Deseas continuar?")) return;
+      deleteRecurringOnlyThisMonth(id);
+      return;
+    }
 
-    deleteTransaction(event.target.dataset.deleteTransactionId);
+    if (!confirm("¿Deseas eliminar este movimiento?")) return;
+    deleteTransaction(id);
   }
 });
 

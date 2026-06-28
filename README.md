@@ -100,3 +100,44 @@ Ejemplo:
 
 - Si registras `Renta` el 5 de enero, aparecerá el 5 de febrero, 5 de marzo, 5 de abril, etc.
 - Si el día no existe en un mes, por ejemplo 31 de enero, en febrero se ajusta al último día válido.
+
+
+## Corrección de categorías
+
+Se corrigió un error de JavaScript en `renderAnalytics()` que podía aparecer al agregar o modificar categorías.
+
+Causa: la variable `cumulative` se usaba fuera de su alcance dentro del módulo Data Analytics Pro. Al guardar una categoría, la app refrescaba el dashboard y esa referencia detenía el flujo.
+
+También se agregaron validaciones para categorías vacías y duplicadas.
+
+
+## Corrección de edición de gastos recurrentes por mes
+
+Regla aplicada:
+
+- Si registras un gasto fijo recurrente en junio, se muestra automáticamente en julio, agosto, septiembre, etc.
+- Si entras en julio y editas ese gasto, el cambio se guarda **solo para julio**.
+- Junio queda intacto.
+- Agosto y los meses futuros siguen usando la serie original, salvo que también edites esos meses.
+- Si eliminas el “cambio del mes”, vuelve a mostrarse el valor original de la serie para ese mes.
+
+Técnicamente, la app crea un registro interno `fixed_override` para ese mes específico, sin modificar el gasto recurrente original.
+
+
+## Corrección de eliminación de gastos recurrentes por mes
+
+Nueva regla aplicada:
+
+- Si eliminas un gasto recurrente desde julio, se elimina **solo julio**.
+- Junio queda intacto.
+- Agosto, septiembre y los siguientes meses siguen mostrando la serie recurrente original.
+- Si ese mes tenía una modificación especial, primero se elimina esa modificación y luego se marca ese mes como eliminado.
+- La app crea internamente un registro `fixed_deleted` para ocultar ese recurrente únicamente en el mes seleccionado.
+
+Ejemplo:
+
+- Registras `Renta` en junio.
+- Aparece automáticamente en julio, agosto y septiembre.
+- En julio presionas `Eliminar solo este mes`.
+- Julio ya no muestra la renta.
+- Junio, agosto y septiembre siguen mostrando la renta.

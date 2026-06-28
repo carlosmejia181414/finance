@@ -39,16 +39,12 @@
       "id": "cat_health",
       "name": "Salud",
       "kind": "variable"
+    },
+    {
+      "id": "4d23f23c-104b-4917-bc94-f6a92e5bc3c7",
+      "name": "Mascota",
+      "kind": "variable"
     }
   ],
-  "transactions": [
-    {
-      "id": "33caf685-37d9-4003-bbf6-fe60ef72cdf8",
-      "date": "2026-06-28",
-      "type": "fixed",
-      "categoryId": "cat_rent",
-      "amount": 1826,
-      "description": "casa"
-    }
-  ]
+  "transactions": []
 }

@@ -160,7 +160,10 @@ const server = http.createServer(async (request, response) => {
         type: transaction.type,
         categoryId: transaction.categoryId,
         amount: Number(transaction.amount),
-        description: transaction.description || ""
+        description: transaction.description || "",
+        parentRecurringId: transaction.parentRecurringId || null,
+        overrideYear: Number.isInteger(transaction.overrideYear) ? transaction.overrideYear : null,
+        overrideMonth: Number.isInteger(transaction.overrideMonth) ? transaction.overrideMonth : null
       };
 
       db.transactions.push(newTransaction);
@@ -183,7 +186,10 @@ const server = http.createServer(async (request, response) => {
           type: updates.type,
           categoryId: updates.categoryId,
           amount: Number(updates.amount),
-          description: updates.description || ""
+          description: updates.description || "",
+          parentRecurringId: updates.parentRecurringId || transaction.parentRecurringId || null,
+          overrideYear: Number.isInteger(updates.overrideYear) ? updates.overrideYear : (Number.isInteger(transaction.overrideYear) ? transaction.overrideYear : null),
+          overrideMonth: Number.isInteger(updates.overrideMonth) ? updates.overrideMonth : (Number.isInteger(transaction.overrideMonth) ? transaction.overrideMonth : null)
         };
       });
 
@@ -206,6 +212,13 @@ const server = http.createServer(async (request, response) => {
     if (request.url === "/api/categories" && request.method === "POST") {
       const category = await getRequestBody(request);
       const db = readDatabase();
+
+      if (!category.name || !category.name.trim() || !category.kind) {
+        sendJson(response, 400, { error: "Debes ingresar nombre y tipo de categoría." });
+        return;
+      }
+
+      category.name = category.name.trim();
 
       const exists = db.categories.some(cat =>
         cat.name.toLowerCase() === category.name.toLowerCase() &&
@@ -233,6 +246,24 @@ const server = http.createServer(async (request, response) => {
       const id = request.url.split("/").pop();
       const updates = await getRequestBody(request);
       const db = readDatabase();
+
+      if (!updates.name || !updates.name.trim() || !updates.kind) {
+        sendJson(response, 400, { error: "Debes ingresar nombre y tipo de categoría." });
+        return;
+      }
+
+      updates.name = updates.name.trim();
+
+      const duplicate = db.categories.some(category =>
+        category.id !== id &&
+        category.name.toLowerCase() === updates.name.toLowerCase() &&
+        category.kind === updates.kind
+      );
+
+      if (duplicate) {
+        sendJson(response, 400, { error: "Ya existe otra categoría con ese nombre y tipo." });
+        return;
+      }
 
       db.categories = db.categories.map(category => {
         if (category.id !== id) return category;
