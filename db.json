@@ -1,212 +1,64 @@
 {
+  "categories": [
+    {
+      "id": "cat_salary",
+      "name": "Salario",
+      "kind": "income"
+    },
+    {
+      "id": "cat_extra_income",
+      "name": "Ingreso extra",
+      "kind": "income"
+    },
+    {
+      "id": "cat_rent",
+      "name": "Renta",
+      "kind": "fixed"
+    },
+    {
+      "id": "cat_internet",
+      "name": "Internet",
+      "kind": "fixed"
+    },
+    {
+      "id": "cat_phone",
+      "name": "Celular",
+      "kind": "fixed"
+    },
+    {
+      "id": "cat_insurance",
+      "name": "Seguro",
+      "kind": "fixed"
+    },
+    {
+      "id": "cat_groceries",
+      "name": "Comida",
+      "kind": "variable"
+    },
+    {
+      "id": "cat_transport",
+      "name": "Transporte",
+      "kind": "variable"
+    },
+    {
+      "id": "cat_health",
+      "name": "Salud",
+      "kind": "variable"
+    },
+    {
+      "id": "cat_entertainment",
+      "name": "Entretenimiento",
+      "kind": "variable"
+    }
+  ],
   "transactions": [
     {
-      "id": "9d4a1639-f91e-46e9-8420-1fcf679d250d",
-      "date": "2026-06-15",
-      "type": "fixed",
-      "category": "celulares",
-      "amount": 50,
-      "description": "celular merylin"
-    },
-    {
-      "id": "15c0965e-d588-4926-9071-5f653ff38460",
-      "date": "2026-06-15",
-      "type": "fixed",
-      "category": "celulares",
-      "amount": 50,
-      "description": "celular carlos"
-    },
-    {
-      "id": "6a0fe02c-d552-49f3-8c6e-d22e267d2f16",
-      "date": "2026-06-18",
-      "type": "fixed",
-      "category": "internet",
-      "amount": 68,
-      "description": "internet de la casa"
-    },
-    {
-      "id": "4361ad58-3b33-46ab-b51b-11361c85dc4e",
-      "date": "2026-06-06",
-      "type": "fixed",
-      "category": "comida",
-      "amount": 250,
-      "description": "comida 1"
-    },
-    {
-      "id": "f9833420-5dda-4830-b057-7fc2aafbe5da",
-      "date": "2026-06-13",
-      "type": "fixed",
-      "category": "comida",
-      "amount": 250,
-      "description": "comida 2"
-    },
-    {
-      "id": "a2483195-c811-4f12-8714-6303f1c12fb6",
-      "date": "2026-06-20",
-      "type": "fixed",
-      "category": "comida",
-      "amount": 250,
-      "description": "comida 3"
-    },
-    {
-      "id": "8900addc-5f8b-4325-8e24-aa89b11bc3d2",
-      "date": "2026-06-27",
-      "type": "fixed",
-      "category": "comida",
-      "amount": 250,
-      "description": "comida 4"
-    },
-    {
-      "id": "a541b271-c154-401b-8681-359432f8f6e5",
-      "date": "2026-06-24",
-      "type": "fixed",
-      "category": "seguro carro",
-      "amount": 216,
-      "description": "seguro carro blanco"
-    },
-    {
-      "id": "513bdf04-f44f-4e9f-8a34-409147f60ea6",
-      "date": "2026-06-28",
-      "type": "fixed",
-      "category": "seguro carro",
-      "amount": 180,
-      "description": "seguro carro azul"
-    },
-    {
-      "id": "fad87f3b-7418-4363-97f4-ba277318dd9a",
-      "date": "2026-06-30",
-      "type": "fixed",
-      "category": "alquiler casa",
-      "amount": 1826,
-      "description": "casa"
-    },
-    {
-      "id": "c856c6a0-23d3-4243-be51-216e54fcbfdb",
-      "date": "2026-06-05",
-      "type": "fixed",
-      "category": "prestamo carro azul",
-      "amount": 247,
-      "description": "prestamo carro azul"
-    },
-    {
-      "id": "09b6c35c-db48-485d-baf9-3cfac60a2e64",
-      "date": "2026-06-19",
-      "type": "fixed",
-      "category": "prestamo carro azul",
-      "amount": 247,
-      "description": "prestamo carro azul"
-    },
-    {
-      "id": "05c701f0-3776-4f1f-9cd4-8f5db50c9e49",
-      "date": "2026-06-01",
-      "type": "fixed",
-      "category": "luz",
-      "amount": 45,
-      "description": "luz"
-    },
-    {
-      "id": "94766b2d-a9d0-4eb8-9d12-c6a8f6a49692",
-      "date": "2026-06-01",
-      "type": "fixed",
-      "category": "comida tekila",
-      "amount": 150,
-      "description": "comida tekila"
-    },
-    {
-      "id": "ba4f8e01-72f1-4d06-a243-a1fd54a77158",
-      "date": "2026-06-28",
-      "type": "fixed",
-      "category": "inversiones",
-      "amount": 75,
-      "description": "carlos"
-    },
-    {
-      "id": "736be52e-6011-4ee7-8d81-782a248a797b",
-      "date": "2026-06-28",
-      "type": "fixed",
-      "category": "inversiones",
-      "amount": 25,
-      "description": "merylin"
-    },
-    {
-      "id": "8395c49a-be30-4aab-9f49-0915d1190c31",
-      "date": "2026-06-19",
-      "type": "fixed",
-      "category": "mantenimiento de cuenta",
-      "amount": 5,
-      "description": "carlos"
-    },
-    {
-      "id": "77f43544-8afd-4579-a016-077417443f57",
-      "date": "2026-06-01",
-      "type": "fixed",
-      "category": "lavanderia",
-      "amount": 60,
-      "description": "lavar ropa"
-    },
-    {
-      "id": "47f77474-e046-4685-a9e3-fc98d4aaa4a8",
-      "date": "2026-06-01",
-      "type": "fixed",
-      "category": "gasolina",
-      "amount": 170,
-      "description": "gasolinas"
-    },
-    {
-      "id": "6bcbf2f6-92ac-4638-93c9-03c4ae80d522",
-      "date": "2026-06-19",
+      "id": "aae81521-fb35-4afb-b9d9-1405e1e872db",
+      "date": "2026-06-10",
       "type": "income",
-      "category": "salario",
-      "amount": 2049,
-      "description": "merylin"
-    },
-    {
-      "id": "a4814bce-3049-4127-ac6e-bf884c64c400",
-      "date": "2026-06-19",
-      "type": "income",
-      "category": "salario",
-      "amount": 1207,
-      "description": "carlos"
-    },
-    {
-      "id": "c2cab85a-111c-47a3-a643-71faa5943c5b",
-      "date": "2026-06-05",
-      "type": "income",
-      "category": "salario",
-      "amount": 1915,
-      "description": "merylin"
-    },
-    {
-      "id": "3272fae3-bd3e-4229-a973-1df381b85651",
-      "date": "2026-06-05",
-      "type": "income",
-      "category": "salario",
-      "amount": 1250,
-      "description": "carlos"
-    },
-    {
-      "id": "d0756e77-fa89-4bac-92d5-274843e7cc28",
-      "date": "2026-06-21",
-      "type": "variable",
-      "category": "carro",
-      "amount": 50,
-      "description": "mantenimiento"
-    },
-    {
-      "id": "b8f3ed78-282c-49e1-a396-2aac4adc6c9d",
-      "date": "2026-06-21",
-      "type": "variable",
-      "category": "comidas",
-      "amount": 100,
-      "description": "comidas calle"
-    },
-    {
-      "id": "d10df09d-e700-4dc4-98ec-a10b10a2993a",
-      "date": "2026-06-21",
-      "type": "variable",
-      "category": "vitaminas",
-      "amount": 150,
-      "description": "tekila"
+      "categoryId": "cat_salary",
+      "amount": 1120,
+      "description": ""
     }
   ]
 }

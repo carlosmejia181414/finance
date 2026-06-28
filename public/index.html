@@ -3,150 +3,171 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Control de Balance con JSON DB</title>
+  <title>Balance Personal - JSON DB</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Control de Balance</h1>
-    <p>Ingresos, gastos fijos recurrentes, gastos variables y ahorro. Datos guardados en <strong>db.json</strong>.</p>
-  </header>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-icon">💰</span>
+      <div>
+        <h1>Mi Balance</h1>
+        <p>JSON DB</p>
+      </div>
+    </div>
 
-  <main class="container">
-    <section class="card">
-      <h2>Registrar movimiento</h2>
+    <nav class="menu">
+      <button class="nav-btn active" data-section="transactionsSection">Registrar movimientos</button>
+      <button class="nav-btn" data-section="categoriesSection">Categorías</button>
+      <button class="nav-btn" data-section="chartsSection">Gráficos</button>
+      <button class="nav-btn" data-section="analyticsSection">Data analytics</button>
+    </nav>
+  </aside>
 
-      <form id="transactionForm">
-        <div class="grid">
-          <label>
-            Fecha
-            <input type="date" id="date" required />
-          </label>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h2 id="pageTitle">Registrar movimientos</h2>
+        <p>Administra ingresos, gastos fijos recurrentes, gastos variables y ahorro.</p>
+      </div>
+      <button id="exportBtn" class="secondary">Exportar db.json</button>
+    </header>
 
-          <label>
-            Tipo
-            <select id="type" required>
-              <option value="income">Ingreso</option>
-              <option value="fixed">Gasto fijo recurrente</option>
-              <option value="variable">Gasto variable</option>
-            </select>
-          </label>
-
-          <label>
-            Categoría
-            <input type="text" id="category" placeholder="Ej: salario, renta, comida" required />
-          </label>
-
-          <label>
-            Monto
-            <input type="number" id="amount" min="0" step="0.01" placeholder="0.00" required />
-          </label>
-        </div>
-
-        <label>
-          Descripción
-          <input type="text" id="description" placeholder="Ej: pago quincenal, supermercado, internet" />
-        </label>
-
-        <div class="form-actions">
-          <button type="submit" id="submitBtn">Agregar</button>
-          <button type="button" id="cancelEditBtn" class="secondary hidden">Cancelar edición</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>Filtros</h2>
+    <section class="filters card">
+      <h3>Filtros generales</h3>
       <div class="grid two-columns">
-        <label>
-          Mes
-          <select id="monthFilter"></select>
-        </label>
-
-        <label>
-          Año
-          <select id="yearFilter"></select>
-        </label>
+        <label>Mes <select id="monthFilter"></select></label>
+        <label>Año <select id="yearFilter"></select></label>
       </div>
     </section>
 
     <section class="summary">
-      <div class="summary-card income">
-        <h3>Ingresos</h3>
-        <p id="totalIncome">$0.00</p>
-      </div>
-
-      <div class="summary-card fixed">
-        <h3>Gastos fijos</h3>
-        <p id="totalFixed">$0.00</p>
-      </div>
-
-      <div class="summary-card variable">
-        <h3>Gastos variables</h3>
-        <p id="totalVariable">$0.00</p>
-      </div>
-
-      <div class="summary-card savings">
-        <h3>Ahorro</h3>
-        <p id="savingsBalance">$0.00</p>
-      </div>
+      <div class="summary-card income"><h3>Ingresos</h3><p id="totalIncome">$0.00</p></div>
+      <div class="summary-card fixed"><h3>Gastos fijos</h3><p id="totalFixed">$0.00</p></div>
+      <div class="summary-card variable"><h3>Gastos variables</h3><p id="totalVariable">$0.00</p></div>
+      <div class="summary-card savings"><h3>Ahorro</h3><p id="savingsBalance">$0.00</p></div>
     </section>
 
-    <section class="dashboard-row">
-      <div class="card chart-card">
-        <h2>Gráfico del mes</h2>
-        <canvas id="monthlyChart"></canvas>
+    <section id="transactionsSection" class="page-section active-section">
+      <div class="card">
+        <h3>Registrar ingreso o gasto</h3>
+        <form id="transactionForm">
+          <div class="grid">
+            <label>Fecha <input type="date" id="date" required /></label>
+            <label>
+              Tipo
+              <select id="type" required>
+                <option value="income">Ingreso</option>
+                <option value="fixed">Gasto fijo recurrente</option>
+                <option value="variable">Gasto variable</option>
+              </select>
+            </label>
+            <label>Categoría <select id="categorySelect" required></select></label>
+            <label>Monto <input type="number" id="amount" min="0" step="0.01" placeholder="0.00" required /></label>
+          </div>
+          <label>Descripción <input type="text" id="description" placeholder="Ej: pago quincenal, supermercado, internet" /></label>
+          <div class="form-actions">
+            <button type="submit" id="submitBtn">Agregar</button>
+            <button type="button" id="cancelEditBtn" class="secondary hidden">Cancelar edición</button>
+          </div>
+        </form>
       </div>
 
-      <div class="card detail-card">
-        <h2>Detalle del mes</h2>
+      <div class="dashboard-row">
+        <div class="card chart-card">
+          <h3>Gráfico del mes</h3>
+          <canvas id="monthlyChart"></canvas>
+        </div>
+
+        <div class="card detail-card">
+          <h3>Detalle del mes</h3>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Monto</th><th>Categoría</th><th>Descripción</th><th>Tipo</th><th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="monthlyDetailTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Movimientos del mes</h3>
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Monto</th>
-                <th>Categoría</th>
-                <th>Descripción</th>
-                <th>Tipo</th>
-                <th>Acción</th>
+                <th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Acción</th>
               </tr>
             </thead>
-            <tbody id="monthlyDetailTable"></tbody>
+            <tbody id="transactionTable"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Ahorro por meses del año</h2>
-      <canvas id="yearlyChart"></canvas>
-    </section>
-
-    <section class="card">
-      <div class="table-header">
-        <h2>Movimientos registrados</h2>
-        <button id="exportBtn" class="secondary">Exportar JSON</button>
+    <section id="categoriesSection" class="page-section">
+      <div class="card">
+        <h3>Alimentar categorías</h3>
+        <p class="muted">Agrega, modifica o elimina categorías. Luego aparecerán en el combo box del formulario.</p>
+        <form id="categoryForm">
+          <div class="grid three-columns">
+            <label>Nombre de categoría <input type="text" id="categoryName" placeholder="Ej: Mascota, renta, comida" required /></label>
+            <label>
+              Tipo
+              <select id="categoryKind" required>
+                <option value="income">Ingreso</option>
+                <option value="fixed">Gasto fijo recurrente</option>
+                <option value="variable">Gasto variable</option>
+              </select>
+            </label>
+            <div class="form-actions align-end">
+              <button type="submit" id="categorySubmitBtn">Agregar categoría</button>
+              <button type="button" id="categoryCancelBtn" class="secondary hidden">Cancelar</button>
+            </div>
+          </div>
+        </form>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Categoría</th>
-              <th>Descripción</th>
-              <th>Monto</th>
-              <th>Acción</th>
-            </tr>
-          </thead>
-          <tbody id="transactionTable"></tbody>
-        </table>
+      <div class="card">
+        <h3>Lista de categorías</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Categoría</th><th>Tipo</th><th>Uso</th><th>Acción</th></tr></thead>
+            <tbody id="categoriesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="chartsSection" class="page-section">
+      <div class="charts-grid">
+        <div class="card"><h3>Reporte mensual</h3><canvas id="chartsMonthlyChart"></canvas></div>
+        <div class="card"><h3>Reporte por categoría</h3><canvas id="categoryReportChart"></canvas></div>
+        <div class="card wide-card"><h3>Ahorro por meses del año</h3><canvas id="yearlyChart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="analyticsSection" class="page-section">
+      <div class="analytics-grid">
+        <div class="card"><h3>Resumen analítico</h3><div id="analyticsCards" class="analytics-cards"></div></div>
+        <div class="card">
+          <h3>Top categorías del mes</h3>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Categoría</th><th>Tipo</th><th>Monto</th><th>% del ingreso</th></tr></thead>
+              <tbody id="analyticsCategoryTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card wide-card"><h3>Insights automáticos</h3><ul id="insightsList" class="insights-list"></ul></div>
       </div>
     </section>
   </main>
-
   <script src="app.js"></script>
 </body>
 </html>
