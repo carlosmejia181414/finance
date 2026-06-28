@@ -51,14 +51,5 @@
       "kind": "variable"
     }
   ],
-  "transactions": [
-    {
-      "id": "aae81521-fb35-4afb-b9d9-1405e1e872db",
-      "date": "2026-06-10",
-      "type": "income",
-      "categoryId": "cat_salary",
-      "amount": 1120,
-      "description": ""
-    }
-  ]
+  "transactions": []
 }
